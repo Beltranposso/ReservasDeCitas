@@ -14,6 +14,8 @@ import DashboardPage from "../Feactures/Dashboard/Dasboard.page";
 import EventPage from "../Feactures/events/Events.page";
 import Contacs from "../Feactures/contacts/Contacts.page";
 import Intergations from "../Feactures/integrations/integrations.page";
+import AgendacionPage from "../Feactures/Agendacion/AgendacionPage";
+
 export const routes: RouteObject[] = [
   {
     path: "/",
@@ -22,6 +24,14 @@ export const routes: RouteObject[] = [
       { index: true, element:<div className="h-full w-full bg-amber-300 flex justify-center items-center font-sans">Ladingpage</div>},
       { path: "login", element: <div className="h-full w-full bg-blue-300 flex justify-center items-center font-sans">Login</div> },
       { path: "register", element: <div className="h-full w-full bg-green-300 flex justify-center items-center font-sans">Register</div> },
+      { path: "invitacion", element: (
+        <AgendacionPage
+          anfitrion="Julian Caro Santafe"
+          evento="prueba"
+          duracion="30 min"
+          descripcion="Descripcion"
+        />
+      ) },
       { path: "*", element: (
         <div className="h-screen w-full flex flex-col items-center justify-center bg-gradient-to-r from-blue-50 to-blue-100">
           <div className="flex items-center mb-6">

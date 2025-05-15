@@ -178,14 +178,18 @@
 
 @layer base {
   * {
-    border: 1px solid var(--border);
+    border-color: black;
     box-sizing: border-box;
   }
   body {
-    @apply bg-background text-foreground min-h-screen antialiased;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
-}
+  }
+
 
 /* Estilos para la barra de desplazamiento personalizada */
 .custom-scrollbar::-webkit-scrollbar {
@@ -205,7 +209,7 @@
   background-color: var(--pastel-lavender);
 }
 
-/* Para Firefox */
+/* Para Firefox */ 
 .custom-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: var(--pastel-pink) transparent;
