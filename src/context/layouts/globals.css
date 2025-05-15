@@ -1,0 +1,253 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+
+    /* Rosa pastel */
+    --primary: 340 80% 88%;
+    --primary-foreground: 355 100% 20%;
+
+    /* Azul pastel */
+    --secondary: 200 80% 88%;
+    --secondary-foreground: 210 50% 20%;
+
+    /* Lavanda pastel */
+    --accent: 280 80% 88%;
+    --accent-foreground: 280 50% 20%;
+
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 340 80% 88%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+
+    /* Rosa pastel más oscuro para dark mode */
+    --primary: 340 60% 65%;
+    --primary-foreground: 355 100% 97%;
+
+    /* Azul pastel más oscuro para dark mode */
+    --secondary: 200 60% 65%;
+    --secondary-foreground: 210 50% 97%;
+
+    /* Lavanda pastel más oscuro para dark mode */
+    --accent: 280 60% 65%;
+    --accent-foreground: 280 50% 97%;
+
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 340 60% 65%;
+  }
+}
+
+/* Colores pastel personalizados */
+:root {
+  --pastel-pink: #f8c8dc;
+  --pastel-blue: #c8e7f8;
+  --pastel-mint: #c8f8e7;
+  --pastel-yellow: #f8f4c8;
+  --pastel-lavender: #e7c8f8;
+}
+
+.dark {
+  --pastel-pink: #c27a9e;
+  --pastel-blue: #7a9ec2;
+  --pastel-mint: #7ac29e;
+  --pastel-yellow: #c2b47a;
+  --pastel-lavender: #9e7ac2;
+}
+
+/* Clases de utilidad para los colores pastel */
+.bg-pastel-pink {
+  background-color: var(--pastel-pink);
+}
+
+.bg-pastel-blue {
+  background-color: var(--pastel-blue);
+}
+
+.bg-pastel-mint {
+  background-color: var(--pastel-mint);
+}
+
+.bg-pastel-yellow {
+  background-color: var(--pastel-yellow);
+}
+
+.bg-pastel-lavender {
+  background-color: var(--pastel-lavender);
+}
+
+.text-pastel-pink {
+  color: var(--pastel-pink);
+}
+
+.text-pastel-blue {
+  color: var(--pastel-blue);
+}
+
+.text-pastel-mint {
+  color: var(--pastel-mint);
+}
+
+.text-pastel-yellow {
+  color: var(--pastel-yellow);
+}
+
+.text-pastel-lavender {
+  color: var(--pastel-lavender);
+}
+
+/* Variantes con opacidad */
+.bg-pastel-pink\/20 {
+  background-color: rgba(248, 200, 220, 0.2);
+}
+
+.bg-pastel-blue\/20 {
+  background-color: rgba(200, 231, 248, 0.2);
+}
+
+.bg-pastel-mint\/20 {
+  background-color: rgba(200, 248, 231, 0.2);
+}
+
+.bg-pastel-yellow\/20 {
+  background-color: rgba(248, 244, 200, 0.2);
+}
+
+.bg-pastel-lavender\/20 {
+  background-color: rgba(231, 200, 248, 0.2);
+}
+
+.bg-pastel-lavender\/30 {
+  background-color: rgba(231, 200, 248, 0.3);
+}
+
+/* Hover states */
+.hover\:bg-pastel-pink\/90:hover {
+  background-color: rgba(248, 200, 220, 0.9);
+}
+
+.hover\:bg-pastel-blue\/90:hover {
+  background-color: rgba(200, 231, 248, 0.9);
+}
+
+.hover\:bg-pastel-mint\/90:hover {
+  background-color: rgba(200, 248, 231, 0.9);
+}
+
+.hover\:bg-pastel-yellow\/90:hover {
+  background-color: rgba(248, 244, 200, 0.9);
+}
+
+.hover\:bg-pastel-lavender\/90:hover {
+  background-color: rgba(231, 200, 248, 0.9);
+}
+
+@layer base {
+  * {
+    border: 1px solid var(--border);
+    box-sizing: border-box;
+  }
+  body {
+    @apply bg-background text-foreground min-h-screen antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Estilos para la barra de desplazamiento personalizada */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--pastel-pink);
+  border-radius: 20px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: var(--pastel-lavender);
+}
+
+/* Para Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--pastel-pink) transparent;
+}
+
+/* Animaciones para diálogos */
+@keyframes overlayShow {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes contentShow {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.dialog-animate-item {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+/* Desactivar animaciones en las pestañas */
+.tabs-no-animation [role="tabpanel"] {
+  animation: none !important;
+  transition: none !important;
+}
+
+.tabs-no-animation [role="tabpanel"] > * {
+  animation: none !important;
+  transition: none !important;
+}
+
+.tabs-no-animation [data-state] {
+  animation: none !important;
+  transition: none !important;
+}
