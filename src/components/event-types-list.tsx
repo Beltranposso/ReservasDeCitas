@@ -47,7 +47,7 @@ import {toast} from "sonner"
 import { Textarea } from "../components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select"
 import { Switch } from "../components/ui/switch"
-import CreateEventForm from "../Feactures/events/components/create-event-form"
+import CreateEventForm from "../Feactures/Dashboard/events/components/create-event-form"
 
 export default function EventTypesList() {
   const [selectedEventId, setSelectedEventId] = useState<number | null>(null)

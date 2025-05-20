@@ -1,12 +1,12 @@
-import { Button } from "../../components/ui/button"
-import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "../../components/ui/card"
-import { Badge } from "../../components/ui/badge"
-import { Switch } from "../../components/ui/switch"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs"
+import { Button } from "../../../components/ui/button"
+import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "../../../components/ui/card"
+import { Badge } from "../../../components/ui/badge"
+import { Switch } from "../../../components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs"
 import { Calendar, Link2, Video } from "lucide-react"
-import { FadeIn } from "../../components/animations/fade-in"
-import { StaggerContainer } from "../../components/animations/stagger-container"
-import { AnimatedCard } from "../../components/animations/animated-card"
+import { FadeIn } from "../../../components/animations/fade-in"
+import { StaggerContainer } from "../../../components/animations/stagger-container"
+import { AnimatedCard } from "../../../components/animations/animated-card"
 
 export default function IntegrationsPage() {
   const videoIntegrations = [

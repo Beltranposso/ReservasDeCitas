@@ -1,14 +1,19 @@
-import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card"
-import { Button } from "../../components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs"
+import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card"
+import { Button } from "../../../components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs"
 import { Calendar, Clock, Users, Video, PlusCircle } from "lucide-react"
-import UpcomingEvents from "../../components/upcoming-events"
-import EventTypesList from "../../components/event-types-list"
-import { AnimatedCard } from "../../components/animations/animated-card"
-import { FadeIn } from "../../components/animations/fade-in"
-import { StaggerContainer } from "../../components/animations/stagger-container"
+import UpcomingEvents from "../../../components/upcoming-events"
+import EventTypesList from "../../../components/event-types-list"
+import { AnimatedCard } from "../../../components/animations/animated-card"
+import { FadeIn } from "../../../components/animations/fade-in"
+import { StaggerContainer } from "../../../components/animations/stagger-container"
 
 export default function Dashboard() {
+
+
+
+
+
   return (
     <div className="space-y-6">
       <FadeIn className="flex items-center justify-between">
@@ -89,4 +94,7 @@ export default function Dashboard() {
       </FadeIn>
     </div>
   )
+
+
+
 }

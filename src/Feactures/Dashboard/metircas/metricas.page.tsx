@@ -1,10 +1,10 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs"
-import { Button } from "../../components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs"
+import { Button } from "../../../components/ui/button"
 import { Calendar, Download } from "lucide-react"
-import { FadeIn } from "../../components/animations/fade-in"
-import { StaggerContainer } from "../../components/animations/stagger-container"
-import { AnimatedCard } from "../../components/animations/animated-card"
+import { FadeIn } from "../../../components/animations/fade-in"
+import { StaggerContainer } from "../../../components/animations/stagger-container"
+import { AnimatedCard } from "../../../components/animations/animated-card"
 
 export default function MetricsPage() {
   return (

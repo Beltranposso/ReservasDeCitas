@@ -1,10 +1,10 @@
-import { Button } from "../../components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs"
+import { Button } from "../../../components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs"
 import { PlusCircle } from "lucide-react"
-import EventTypesList from "../../components/event-types-list"
+import EventTypesList from "../../../components/event-types-list"
 import CreateEventForm from "./components/create-event-form"
-import { FadeIn } from "../../components/animations/fade-in"
+import { FadeIn } from "../../../components/animations/fade-in"
 
 export default function EventsPage() {
   return (
