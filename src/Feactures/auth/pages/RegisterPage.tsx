@@ -9,6 +9,7 @@ import { Label } from '../../../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
 import { FadeIn } from '../../../components/animations/fade-in';
 import { Eye, EyeOff, Lock, Mail, User, Building, CreditCard, ChevronLeft } from 'lucide-react';
+import apiClient, { API_ROUTES, setAuthToken } from '../../../services/apiclient';
 
 const planDetails = {
   'starter': { name: 'Starter', price: 49900 },
@@ -34,10 +35,11 @@ export default function RegisterPage() {
     lastName: '',
     companyName: '',
     companySize: '',
+    timezone: 'America/Bogota', // Valor por defecto para Colombia
     // Datos de pago
     cardName: '',
     cardNumber: '',
-    cardExpiry: '',
+    cardExpiry: '', 
     cardCvc: '',
   });
 
@@ -87,19 +89,41 @@ export default function RegisterPage() {
     }
   };
 
+  const [error, setError] = useState('');
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError('');
     
     try {
-      // Aquí iría la integración con la pasarela de pagos (Bolt)
-      // y el registro del usuario en la base de datos
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Preparar los datos según el formato requerido por la API
+      const userData = {
+        name: `${formData.firstName} ${formData.lastName}`,
+        email: formData.email,
+        password: formData.password,
+        timezone: formData.timezone
+      };
       
-      // Redirección a una página de confirmación o dashboard
-      window.location.href = '/register/success';
-    } catch (error) {
+      // Llamada a la API para registrar al usuario
+      const response = await apiClient.post(API_ROUTES.register, userData);
+      
+      // Si el registro es exitoso, guardar el token
+      if (response.token) {
+        setAuthToken(response.token);
+        localStorage.setItem('authToken', response.token);
+        
+        // Aquí iría la integración con la pasarela de pagos (Bolt)
+        // para procesar el pago con los datos de la tarjeta
+        
+        // Redirección a una página de confirmación o dashboard
+        window.location.href = '/register/success';
+      } else {
+        setError('Respuesta de registro inválida');
+      }
+    } catch (error: any) {
       console.error('Error durante el registro:', error);
+      setError(error.response?.data?.message || 'Error al registrar usuario. Por favor intenta nuevamente.');
     } finally {
       setIsLoading(false);
     }
@@ -143,6 +167,11 @@ export default function RegisterPage() {
               </TabsList>
               
               <form onSubmit={handleSubmit}>
+                {error && (
+                  <div className="p-3 rounded-md bg-red-50 text-red-500 text-sm mb-4">
+                    {error}
+                  </div>
+                )}
                 <TabsContent value="account" className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="email">Correo electrónico</Label>
@@ -255,6 +284,25 @@ export default function RegisterPage() {
                         <SelectItem value="51-200">51-200 empleados</SelectItem>
                         <SelectItem value="201-500">201-500 empleados</SelectItem>
                         <SelectItem value="501+">Más de 500 empleados</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="timezone">Zona horaria</Label>
+                    <Select 
+                      value={formData.timezone} 
+                      onValueChange={(value) => handleSelectChange('timezone', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona tu zona horaria" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="America/Bogota">Colombia (GMT-5)</SelectItem>
+                        <SelectItem value="America/Mexico_City">México (GMT-6)</SelectItem>
+                        <SelectItem value="America/Lima">Perú (GMT-5)</SelectItem>
+                        <SelectItem value="America/Santiago">Chile (GMT-4)</SelectItem>
+                        <SelectItem value="America/Argentina/Buenos_Aires">Argentina (GMT-3)</SelectItem>
+                        <SelectItem value="America/Caracas">Venezuela (GMT-4)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

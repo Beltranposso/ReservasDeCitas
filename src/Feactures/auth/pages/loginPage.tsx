@@ -33,7 +33,7 @@ export default function LoginPage() {
         
         // Redirección al dashboard en caso de éxito
         navigate('/dashboard');
-      } else {
+      } else { 
         setError('Respuesta de autenticación inválida');
       }
     } catch (error: any) {
