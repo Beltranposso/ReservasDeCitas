@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import InfoReunion from '../../components/agendacion/InfoReunion';
-import CalendarioSelector from '../../components/agendacion/CalendarioSelector';
-import HorariosDisponibles from '../../components/agendacion/HorariosDisponibles';
-import FormularioDetalles from '../../components/agendacion/FormularioDetalles';
+import InfoReunion from './components/InfoReunion';
+import CalendarioSelector from './components/CalendarioSelector';
+import HorariosDisponibles from './components/HorariosDisponibles';
+import FormularioDetalles from './components/FormularioDetalles';
 
 interface ZonaHoraria {
   id: string;

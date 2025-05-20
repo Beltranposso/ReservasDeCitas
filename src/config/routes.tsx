@@ -7,13 +7,15 @@ import DashboardLayout from "../context/layouts/MainLayout";
 // Pages generales
 /* import LandingPage from '../pages/LandingPage'
 import NotFound from '../pages/NotFound' */
-
+import Loggin from "../Feactures/auth/pages/loginPage";
+import Register from "../Feactures/auth/pages/RegisterPage";
+import PlansPage from "../Feactures/auth/pages/PlansPage";
 // Features
-import MetricasPagae from '../Feactures/metircas/metricas.page'
-import DashboardPage from "../Feactures/Dashboard/Dasboard.page";
-import EventPage from "../Feactures/events/Events.page";
-import Contacs from "../Feactures/contacts/Contacts.page";
-import Intergations from "../Feactures/integrations/integrations.page";
+import MetricasPagae from '../Feactures/Dashboard/metircas/metricas.page'
+import DashboardPage from "../Feactures/Dashboard/main/Dasboard.page";
+import EventPage from "../Feactures/Dashboard/events/Events.page";
+import Contacs from "../Feactures/Dashboard/contacts/Contacts.page";
+import Intergations from "../Feactures/Dashboard/integrations/integrations.page";
 import AgendacionPage from "../Feactures/Agendacion/AgendacionPage";
 
 export const routes: RouteObject[] = [
@@ -22,8 +24,9 @@ export const routes: RouteObject[] = [
     element:<AuthLayaut/>,
     children: [
       { index: true, element:<div className="h-full w-full bg-amber-300 flex justify-center items-center font-sans">Ladingpage</div>},
-      { path: "login", element: <div className="h-full w-full bg-blue-300 flex justify-center items-center font-sans">Login</div> },
-      { path: "register", element: <div className="h-full w-full bg-green-300 flex justify-center items-center font-sans">Register</div> },
+      { path: "login", element: <Loggin></Loggin> },
+      { path: "register", element: <Register></Register> },
+      { path: "Plans", element: <PlansPage></PlansPage> },
       { path: "invitacion", element: (
         <AgendacionPage
           anfitrion="Julian Caro Santafe"
@@ -59,3 +62,4 @@ export const routes: RouteObject[] = [
     ],
   },
 ];
+ 
