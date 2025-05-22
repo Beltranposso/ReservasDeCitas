@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { API_TOKEN } from '../config/api';
 
 // URL base para todas las peticiones
-const BASE_URL = ' http://localhost:3000/api';
+const BASE_URL = 'http://localhost:3000/api';
 
 // Rutas de la API
 const API_ROUTES = {
@@ -20,6 +21,10 @@ const API_ROUTES = {
   // Disponibilidad
   availability: (userId: string) => `/availability/${userId}`,
   
+  // Contactos
+  contacts: '/contacts',
+  contactById: (id: string) => `/contacts/${id}`,
+  
   // Autenticación
   login: '/auth/login',
   register: '/auth/register',
@@ -31,6 +36,8 @@ const apiClient = axios.create({
   baseURL: BASE_URL,
   headers: {
     'Content-Type': 'application/json',
+    // Token por defecto para desarrollo local
+    'Authorization': `Bearer ${API_TOKEN}`
   },
 });
 
