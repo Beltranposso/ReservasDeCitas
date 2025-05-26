@@ -1,6 +1,6 @@
 // src/features/auth/pages/RegisterPage.tsx
-import { useState, useEffect } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useState } from 'react';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
@@ -8,7 +8,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from '../../../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
 import { FadeIn } from '../../../components/animations/fade-in';
-import { Eye, EyeOff, Lock, Mail, User, Building, CreditCard, ChevronLeft } from 'lucide-react';
+import * as lucideReact from 'lucide-react';
+import authService from '../authservice';
+import { toast } from 'sonner';
 
 const planDetails = {
   'starter': { name: 'Starter', price: 49900 },
@@ -17,89 +19,122 @@ const planDetails = {
   'enterprise': { name: 'Enterprise', price: 399900 },
 };
 
+// Lista de zonas horarias comunes
+const timezones = [
+  { value: 'America/Bogota', label: 'Bogotá (GMT-5)' },
+  { value: 'America/Mexico_City', label: 'Ciudad de México (GMT-6)' },
+  { value: 'America/New_York', label: 'Nueva York (GMT-5)' },
+  { value: 'America/Los_Angeles', label: 'Los Ángeles (GMT-8)' },
+  { value: 'Europe/Madrid', label: 'Madrid (GMT+1)' },
+  { value: 'Europe/London', label: 'Londres (GMT+0)' },
+  { value: 'Asia/Tokyo', label: 'Tokio (GMT+9)' },
+  { value: 'UTC', label: 'UTC (GMT+0)' },
+];
+
 export default function RegisterPage() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const planId = searchParams.get('plan') || 'starter';
   const [activeTab, setActiveTab] = useState('account');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Datos del formulario
+  // Datos del formulario simplificados para registro inicial
   const [formData, setFormData] = useState({
     // Datos de cuenta
     email: '',
     password: '',
+    confirmPassword: '',
     // Datos personales
-    firstName: '',
-    lastName: '',
-    companyName: '',
-    companySize: '',
-    // Datos de pago
-    cardName: '',
-    cardNumber: '',
-    cardExpiry: '',
-    cardCvc: '',
+    name: '',
+    timezone: 'America/Bogota',
+    // Plan seleccionado
+    selectedPlan: planId,
   });
+
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    
-    // Formateo especial para números de tarjeta
-    if (name === 'cardNumber') {
-      const formattedValue = value
-        .replace(/\s/g, '')
-        .replace(/(\d{4})/g, '$1 ')
-        .trim()
-        .slice(0, 19);
-      
-      setFormData({ ...formData, [name]: formattedValue });
-      return;
-    }
-    
-    // Formateo para fecha de expiración
-    if (name === 'cardExpiry') {
-      let formattedValue = value.replace(/\D/g, '');
-      if (formattedValue.length > 2) {
-        formattedValue = `${formattedValue.slice(0, 2)}/${formattedValue.slice(2, 4)}`;
-      }
-      
-      setFormData({ ...formData, [name]: formattedValue });
-      return;
-    }
-    
     setFormData({ ...formData, [name]: value });
+    
+    // Limpiar error del campo cuando el usuario empieza a escribir
+    if (errors[name]) {
+      setErrors({ ...errors, [name]: '' });
+    }
   };
   
   const handleSelectChange = (name: string, value: string) => {
     setFormData({ ...formData, [name]: value });
   };
 
-  const handleNext = () => {
-    // Validación básica antes de avanzar
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
     if (activeTab === 'account') {
-      if (formData.email && formData.password.length >= 8) {
-        setActiveTab('personal');
+      if (!formData.email) {
+        newErrors.email = 'El correo es requerido';
+      } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+        newErrors.email = 'Correo inválido';
+      }
+
+      if (!formData.password) {
+        newErrors.password = 'La contraseña es requerida';
+      } else if (formData.password.length < 8) {
+        newErrors.password = 'La contraseña debe tener al menos 8 caracteres';
+      }
+
+      if (formData.password !== formData.confirmPassword) {
+        newErrors.confirmPassword = 'Las contraseñas no coinciden';
       }
     } else if (activeTab === 'personal') {
-      if (formData.firstName && formData.lastName && formData.companyName) {
-        setActiveTab('payment');
+      if (!formData.name) {
+        newErrors.name = 'El nombre es requerido';
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleNext = () => {
+    if (validateForm()) {
+      if (activeTab === 'account') {
+        setActiveTab('personal');
       }
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+
     setIsLoading(true);
     
     try {
-      // Aquí iría la integración con la pasarela de pagos (Bolt)
-      // y el registro del usuario en la base de datos
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Redirección a una página de confirmación o dashboard
-      window.location.href = '/register/success';
-    } catch (error) {
+      // Registrar usuario con los datos básicos
+      const response = await authService.register({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        timezone: formData.timezone,
+      });
+
+      if (response.success) {
+        toast.success('¡Cuenta creada exitosamente!');
+        
+        // Guardar información del plan seleccionado para el proceso de pago posterior
+        localStorage.setItem('selectedPlan', formData.selectedPlan);
+        
+        // Redirección a página de éxito o dashboard
+        navigate('/register/success');
+      }
+    } catch (error: any) {
       console.error('Error durante el registro:', error);
+      toast.error(error.message || 'Error al crear la cuenta. Por favor intenta nuevamente.');
     } finally {
       setIsLoading(false);
     }
@@ -117,9 +152,9 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background to-muted/30">
-      <FadeIn className="w-full max-w-3xl">
+      <FadeIn className="w-full max-w-2xl">
         <Link to="/plans" className="inline-flex items-center text-pastel-blue hover:underline mb-4">
-          <ChevronLeft className="h-4 w-4 mr-1" />
+          <lucideReact.ChevronLeft className="h-4 w-4 mr-1" />
           Volver a planes
         </Link>
         
@@ -136,10 +171,9 @@ export default function RegisterPage() {
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid grid-cols-3 mb-8">
+              <TabsList className="grid grid-cols-2 mb-8">
                 <TabsTrigger value="account">Cuenta</TabsTrigger>
-                <TabsTrigger value="personal">Información</TabsTrigger>
-                <TabsTrigger value="payment">Pago</TabsTrigger>
+                <TabsTrigger value="personal">Información Personal</TabsTrigger>
               </TabsList>
               
               <form onSubmit={handleSubmit}>
@@ -147,7 +181,7 @@ export default function RegisterPage() {
                   <div className="space-y-2">
                     <Label htmlFor="email">Correo electrónico</Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                      <lucideReact.Mail className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
                       <Input
                         id="email"
                         name="email"
@@ -155,22 +189,25 @@ export default function RegisterPage() {
                         placeholder="nombre@empresa.com"
                         value={formData.email}
                         onChange={handleInputChange}
-                        className="pl-10"
+                        className={`pl-10 ${errors.email ? 'border-red-500' : ''}`}
                         required
                       />
                     </div>
+                    {errors.email && (
+                      <p className="text-sm text-red-500">{errors.email}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="password">Contraseña</Label>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                      <lucideReact.Lock className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
                       <Input
                         id="password"
                         name="password"
                         type={showPassword ? "text" : "password"}
                         value={formData.password}
                         onChange={handleInputChange}
-                        className="pl-10 pr-10"
+                        className={`pl-10 pr-10 ${errors.password ? 'border-red-500' : ''}`}
                         required
                         minLength={8}
                       />
@@ -180,15 +217,37 @@ export default function RegisterPage() {
                         onClick={() => setShowPassword(!showPassword)}
                       >
                         {showPassword ? (
-                          <EyeOff className="h-5 w-5 text-muted-foreground" />
+                          <lucideReact.EyeOff className="h-5 w-5 text-muted-foreground" />
                         ) : (
-                          <Eye className="h-5 w-5 text-muted-foreground" />
+                          <lucideReact.Eye className="h-5 w-5 text-muted-foreground" />
                         )}
                       </button>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      La contraseña debe tener al menos 8 caracteres
-                    </p>
+                    {errors.password ? (
+                      <p className="text-sm text-red-500">{errors.password}</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        La contraseña debe tener al menos 8 caracteres
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">Confirmar contraseña</Label>
+                    <div className="relative">
+                      <lucideReact.Lock className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                      <Input
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        type={showPassword ? "text" : "password"}
+                        value={formData.confirmPassword}
+                        onChange={handleInputChange}
+                        className={`pl-10 ${errors.confirmPassword ? 'border-red-500' : ''}`}
+                        required
+                      />
+                    </div>
+                    {errors.confirmPassword && (
+                      <p className="text-sm text-red-500">{errors.confirmPassword}</p>
+                    )}
                   </div>
                   <Button 
                     type="button" 
@@ -200,156 +259,73 @@ export default function RegisterPage() {
                 </TabsContent>
                 
                 <TabsContent value="personal" className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">Nombre</Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                        <Input
-                          id="firstName"
-                          name="firstName"
-                          value={formData.firstName}
-                          onChange={handleInputChange}
-                          className="pl-10"
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Apellido</Label>
-                      <Input
-                        id="lastName"
-                        name="lastName"
-                        value={formData.lastName}
-                        onChange={handleInputChange}
-                        required
-                      />
-                    </div>
-                  </div>
                   <div className="space-y-2">
-                    <Label htmlFor="companyName">Nombre de la empresa</Label>
+                    <Label htmlFor="name">Nombre completo</Label>
                     <div className="relative">
-                      <Building className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
+                      <lucideReact.User className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
                       <Input
-                        id="companyName"
-                        name="companyName"
-                        value={formData.companyName}
+                        id="name"
+                        name="name"
+                        value={formData.name}
                         onChange={handleInputChange}
-                        className="pl-10"
+                        className={`pl-10 ${errors.name ? 'border-red-500' : ''}`}
+                        placeholder="Juan Pérez"
                         required
                       />
                     </div>
+                    {errors.name && (
+                      <p className="text-sm text-red-500">{errors.name}</p>
+                    )}
                   </div>
+                  
                   <div className="space-y-2">
-                    <Label htmlFor="companySize">Tamaño de la empresa</Label>
-                    <Select 
-                      value={formData.companySize} 
-                      onValueChange={(value) => handleSelectChange('companySize', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona el tamaño" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1-10">1-10 empleados</SelectItem>
-                        <SelectItem value="11-50">11-50 empleados</SelectItem>
-                        <SelectItem value="51-200">51-200 empleados</SelectItem>
-                        <SelectItem value="201-500">201-500 empleados</SelectItem>
-                        <SelectItem value="501+">Más de 500 empleados</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button 
-                    type="button" 
-                    className="w-full mt-6 bg-pastel-pink hover:bg-pastel-pink/90"
-                    onClick={handleNext}
-                  >
-                    Continuar
-                  </Button>
-                </TabsContent>
-                
-                <TabsContent value="payment" className="space-y-4">
-                  <div className="rounded-lg border p-4 bg-muted/30 mb-4">
-                    <div className="flex justify-between items-center mb-4">
-                      <div>
-                        <h3 className="font-semibold">{planDetails[planId as keyof typeof planDetails]?.name}</h3>
-                        <p className="text-sm text-muted-foreground">Facturación mensual</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold">{formatPrice(planDetails[planId as keyof typeof planDetails]?.price)}</p>
-                        <p className="text-xs text-muted-foreground">14 días de prueba gratis</p>
-                      </div>
-                    </div>
-                    <div className="text-sm border-t pt-3">
-                      <p className="text-muted-foreground">No se te cobrará hasta que finalice tu período de prueba. Puedes cancelar en cualquier momento.</p>
-                    </div>
-                  </div>
-                
-                  <div className="space-y-2">
-                    <Label htmlFor="cardName">Nombre en la tarjeta</Label>
-                    <Input
-                      id="cardName"
-                      name="cardName"
-                      value={formData.cardName}
-                      onChange={handleInputChange}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="cardNumber">Número de tarjeta</Label>
+                    <Label htmlFor="timezone">Zona horaria</Label>
                     <div className="relative">
-                      <CreditCard className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                      <Input
-                        id="cardNumber"
-                        name="cardNumber"
-                        placeholder="1234 5678 9012 3456"
-                        value={formData.cardNumber}
-                        onChange={handleInputChange}
-                        className="pl-10"
-                        maxLength={19}
-                        required
-                      />
+                      <lucideReact.Globe className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground z-10" />
+                      <Select 
+                        value={formData.timezone} 
+                        onValueChange={(value) => handleSelectChange('timezone', value)}
+                      >
+                        <SelectTrigger className="pl-10">
+                          <SelectValue placeholder="Selecciona tu zona horaria" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {timezones.map(tz => (
+                            <SelectItem key={tz.value} value={tz.value}>
+                              {tz.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="cardExpiry">Fecha de expiración</Label>
-                      <Input
-                        id="cardExpiry"
-                        name="cardExpiry"
-                        placeholder="MM/YY"
-                        value={formData.cardExpiry}
-                        onChange={handleInputChange}
-                        maxLength={5}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="cardCvc">Código de seguridad</Label>
-                      <Input
-                        id="cardCvc"
-                        name="cardCvc"
-                        type="password"
-                        placeholder="CVC"
-                        value={formData.cardCvc}
-                        onChange={handleInputChange}
-                        maxLength={4}
-                        required
-                      />
-                    </div>
+
+                  <div className="mt-6 p-4 rounded-lg bg-muted/50">
+                    <h3 className="font-medium mb-2">Información importante:</h3>
+                    <ul className="text-sm space-y-1 text-muted-foreground">
+                      <li>• Tu prueba gratuita de 14 días comenzará inmediatamente</li>
+                      <li>• No se te cobrará hasta que finalice el período de prueba</li>
+                      <li>• Puedes cancelar en cualquier momento sin cargo</li>
+                      <li>• Configurarás los métodos de pago después del registro</li>
+                    </ul>
                   </div>
+                  
                   <div className="flex flex-col gap-3 mt-6">
                     <Button 
                       type="submit" 
                       className="w-full bg-pastel-pink hover:bg-pastel-pink/90" 
                       disabled={isLoading}
                     >
-                      {isLoading ? "Procesando..." : "Completar registro"}
+                      {isLoading ? "Creando cuenta..." : "Crear cuenta"}
                     </Button>
                     
-                    <div className="flex items-center justify-center gap-2 mt-4">
-                      <img src="/bolt-logo.svg" alt="Bolt" className="h-6" />
-                      <span className="text-sm text-muted-foreground">Procesado de forma segura por Bolt</span>
-                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setActiveTab('account')}
+                    >
+                      Volver
+                    </Button>
                   </div>
                 </TabsContent>
               </form>

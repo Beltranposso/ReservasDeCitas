@@ -1,13 +1,14 @@
-
-import { useState } from 'react';
+import { useState } from "react";
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../../../components/ui/card';
 import { Label } from '../../../components/ui/label';
 import { FadeIn } from "../../../components/animations/fade-in"
+// First install lucide-react: npm install lucide-react
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
-import apiClient, { API_ROUTES, setAuthToken } from '../../../services/apiclient';
+import authService from '../authservice';
+import { toast } from 'sonner';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -15,32 +16,46 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setError('');
     
     try {
-      // Llamada a la API de autenticación
-      const response = await apiClient.post(API_ROUTES.login, { email, password });
+      // Llamada al servicio de autenticación
+      const response = await authService.login({ email, password });
       
-      // Guardar el token en localStorage o en el estado global
-      if (response.token) {
-        setAuthToken(response.token);
-        localStorage.setItem('authToken', response.token);
+      if (response.success) {
+        toast.success('¡Bienvenido de nuevo!');
         
-        // Redirección al dashboard en caso de éxito
-        navigate('/dashboard');
-      } else {
-        setError('Respuesta de autenticación inválida');
+        // Redirección al dashboard
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 500);
       }
     } catch (error: any) {
       console.error('Error durante el inicio de sesión:', error);
-      setError(error.response?.data?.message || 'Error al iniciar sesión. Verifica tus credenciales.');
+      toast.error(error.message || 'Error al iniciar sesión. Verifica tus credenciales.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      // Aquí puedes implementar login con Google OAuth
+      toast.info('Login con Google próximamente disponible');
+    } catch (error) {
+      toast.error('Error al iniciar sesión con Google');
+    }
+  };
+
+  const handleMicrosoftLogin = async () => {
+    try {
+      // Aquí puedes implementar login con Microsoft OAuth
+      toast.info('Login con Microsoft próximamente disponible');
+    } catch (error) {
+      toast.error('Error al iniciar sesión con Microsoft');
     }
   };
 
@@ -125,7 +140,7 @@ export default function LoginPage() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Button variant="outline" className="hover:bg-pastel-blue/10">
+              <Button variant="outline" className="hover:bg-pastel-blue/10" onClick={handleGoogleLogin}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-5 w-5 mr-2">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                   <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
@@ -134,9 +149,12 @@ export default function LoginPage() {
                 </svg>
                 Google
               </Button>
-              <Button variant="outline" className="hover:bg-pastel-blue/10">
+              <Button variant="outline" className="hover:bg-pastel-blue/10" onClick={handleMicrosoftLogin}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-5 w-5 mr-2">
-                  <path fill="#0078d4" d="M23.499 12.27c0-1.213-.094-2.17-.36-3.133h-10.14v5.714h5.999c-.114 1.477-1.343 3.694-5.999 3.694-3.604 0-6.541-2.98-6.541-6.673s2.937-6.673 6.541-6.673c2.028 0 3.383.862 4.152 1.606l2.8-2.686C18.092 2.273 15.383 1 12.003 1 6.579 1 2 5.58 2 11.001c0 5.423 4.579 10.001 10.003 10.001 5.769 0 9.996-4.056 9.996-9.76 0-.382-.042-.751-.1-1.082l-9.897-.89z" />
+                  <path fill="#f25022" d="M1 1h10v10H1z"/>
+                  <path fill="#00a4ef" d="M13 1h10v10H13z"/>
+                  <path fill="#7fba00" d="M1 13h10v10H1z"/>
+                  <path fill="#ffb900" d="M13 13h10v10H13z"/>
                 </svg>
                 Microsoft
               </Button>
