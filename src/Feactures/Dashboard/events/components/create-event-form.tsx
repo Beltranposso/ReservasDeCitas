@@ -35,6 +35,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toast } from "sonner"
 import { AnimatedCard } from "../../../../components/animations/animated-card"
 
+// Interfaz para las props
+interface CreateEventFormProps {
+  onSubmit?: (eventData: any) => Promise<any>;
+}
+
 // Tipo para los horarios
 type TimeSlot = {
   id: string
@@ -48,7 +53,7 @@ type DaySchedule = {
   timeSlots: TimeSlot[]
 }
 
-export default function CreateEventForm() {
+export default function CreateEventForm({ onSubmit }: CreateEventFormProps = {}) {
   // Estado para los horarios por día
   const [schedule, setSchedule] = useState<Record<string, DaySchedule>>({
     Lunes: { enabled: true, timeSlots: [{ id: "lun-1", start: "09:00", end: "17:00" }] },
@@ -256,16 +261,50 @@ export default function CreateEventForm() {
   }
 
   // Función para guardar el formulario
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Aquí iría la lógica para guardar el evento
-    toast({
-      title: "Evento guardado",
-      description: "Tu evento ha sido guardado correctamente",
-      duration: 2000,
-    })
-  }
+    // Recopilar datos del formulario
+    const formElement = formRef.current;
+    if (!formElement) return;
+
+    const title = (formElement.querySelector('#title') as HTMLInputElement)?.value;
+    const description = (formElement.querySelector('#description') as HTMLTextAreaElement)?.value;
+    const duration = (formElement.querySelector('#duration') as HTMLSelectElement)?.value;
+    const location = (formElement.querySelector('#location') as HTMLSelectElement)?.value;
+
+    // Crear objeto con los datos del evento
+    const eventData = {
+      title,
+      description,
+      duration: parseInt(duration || '30'),
+      location,
+      schedule,
+      questions
+    };
+
+    try {
+      // Si se proporcionó una función onSubmit, la llamamos
+      if (onSubmit) {
+        await onSubmit(eventData);
+      } else {
+        // Comportamiento por defecto si no hay onSubmit
+        toast({
+          title: "Evento guardado",
+          description: "Tu evento ha sido guardado correctamente",
+          duration: 2000,
+        });
+      }
+    } catch (error) {
+      console.error("Error al guardar el evento:", error);
+      toast({
+        title: "Error",
+        description: "Hubo un problema al guardar el evento",
+        variant: "destructive",
+        duration: 3000,
+      });
+    }
+  };
 
   // Función para exportar la configuración
   const exportConfig = () => {

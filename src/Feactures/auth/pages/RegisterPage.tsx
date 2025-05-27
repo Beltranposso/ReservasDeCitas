@@ -1,5 +1,5 @@
 // src/features/auth/pages/RegisterPage.tsx
-import { useState, useEffect } from 'react';
+import { useState,  } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
@@ -27,16 +27,17 @@ export default function RegisterPage() {
 
   // Datos del formulario
   const [formData, setFormData] = useState({
-    // Datos de cuenta
+    // Datos de cuenta (REQUERIDOS POR LA API)
     email: '',
     password: '',
-    // Datos personales
+    // Datos personales (REQUERIDOS POR LA API: firstName y lastName se combinan para crear "name")
     firstName: '',
     lastName: '',
+    // Zona horaria (REQUERIDO POR LA API)
+    timezone: 'America/Bogota', // Valor por defecto para Colombia
+    // Datos adicionales del formulario que no se enviarán a la API pero mantenemos para UX
     companyName: '',
     companySize: '',
-    timezone: 'America/Bogota', // Valor por defecto para Colombia
-    // Datos de pago
     cardName: '',
     cardNumber: '',
     cardExpiry: '', 
@@ -83,7 +84,9 @@ export default function RegisterPage() {
         setActiveTab('personal');
       }
     } else if (activeTab === 'personal') {
-      if (formData.firstName && formData.lastName && formData.companyName) {
+      if (formData.firstName && formData.lastName) {
+        // Ya tenemos todos los datos requeridos por la API, podríamos registrar al usuario aquí
+        // Pero seguimos con el flujo normal para mantener la experiencia de usuario
         setActiveTab('payment');
       }
     }
@@ -96,14 +99,23 @@ export default function RegisterPage() {
     setIsLoading(true);
     setError('');
     
+    // Verificar que tenemos todos los datos necesarios para la API
+    if (!formData.email || !formData.password || !formData.firstName || !formData.lastName) {
+      setError('Por favor completa todos los campos requeridos');
+      setIsLoading(false);
+      return;
+    }
+    
     try {
-      // Preparar los datos según el formato requerido por la API
+      // Preparar SOLO los datos requeridos por la API
       const userData = {
         name: `${formData.firstName} ${formData.lastName}`,
         email: formData.email,
         password: formData.password,
         timezone: formData.timezone
       };
+      
+      console.log('Enviando datos al API:', userData);
       
       // Llamada a la API para registrar al usuario
       const response = await apiClient.post(API_ROUTES.register, userData);
@@ -115,6 +127,7 @@ export default function RegisterPage() {
         
         // Aquí iría la integración con la pasarela de pagos (Bolt)
         // para procesar el pago con los datos de la tarjeta
+        // Nota: No estamos enviando los datos de pago al backend en este momento
         
         // Redirección a una página de confirmación o dashboard
         window.location.href = '/register/success';
@@ -265,7 +278,6 @@ export default function RegisterPage() {
                         value={formData.companyName}
                         onChange={handleInputChange}
                         className="pl-10"
-                        required
                       />
                     </div>
                   </div>
@@ -306,6 +318,7 @@ export default function RegisterPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  
                   <Button 
                     type="button" 
                     className="w-full mt-6 bg-pastel-pink hover:bg-pastel-pink/90"
@@ -313,6 +326,18 @@ export default function RegisterPage() {
                   >
                     Continuar
                   </Button>
+                  
+                  {/* Agregamos un botón opcional para enviar el formulario directamente desde esta pestaña */}
+                  <Button 
+                    type="submit" 
+                    className="w-full mt-2 bg-pastel-blue hover:bg-pastel-blue/90" 
+                    disabled={isLoading || !formData.firstName || !formData.lastName || !formData.email || !formData.password}
+                  >
+                    {isLoading ? "Procesando..." : "Registrarme ahora"}
+                  </Button>
+                  <p className="text-xs text-center text-muted-foreground mt-2">
+                    Puedes completar tu registro ahora o continuar al paso de pago
+                  </p>
                 </TabsContent>
                 
                 <TabsContent value="payment" className="space-y-4">
@@ -339,7 +364,6 @@ export default function RegisterPage() {
                       name="cardName"
                       value={formData.cardName}
                       onChange={handleInputChange}
-                      required
                     />
                   </div>
                   <div className="space-y-2">
@@ -354,7 +378,6 @@ export default function RegisterPage() {
                         onChange={handleInputChange}
                         className="pl-10"
                         maxLength={19}
-                        required
                       />
                     </div>
                   </div>
@@ -368,7 +391,6 @@ export default function RegisterPage() {
                         value={formData.cardExpiry}
                         onChange={handleInputChange}
                         maxLength={5}
-                        required
                       />
                     </div>
                     <div className="space-y-2">
@@ -381,7 +403,6 @@ export default function RegisterPage() {
                         value={formData.cardCvc}
                         onChange={handleInputChange}
                         maxLength={4}
-                        required
                       />
                     </div>
                   </div>

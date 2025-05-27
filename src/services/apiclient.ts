@@ -13,6 +13,11 @@ const API_ROUTES = {
   events: '/events',
   eventById: (id: string) => `/events/${id}`,
   
+  // Tipos de Eventos
+  eventTypes: '/event-types',
+  eventTypeById: (id: string) => `/event-types/${id}`,
+  eventTypeByCustomUrl: (customUrl: string) => `/event-types/public/${customUrl}`,
+  
   // Citas
   appointments: '/appointments',
   appointmentById: (id: string) => `/appointments/${id}`,

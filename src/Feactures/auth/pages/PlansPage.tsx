@@ -28,8 +28,8 @@ export default function PlansPage() {
   const plans: Plan[] = [
     {
       id: 'starter',
-      name: 'Starter',
-      price: billingPeriod === 'monthly' ? 49900 : 499000,
+      name: 'Free',
+      price: billingPeriod === 'monthly' ? 0 : 0,
       description: 'Ideal para profesionales independientes',
       color: 'bg-blue-500',
       features: [
