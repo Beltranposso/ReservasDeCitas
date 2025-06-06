@@ -1,8 +1,13 @@
 // src/services/apiclient.ts
 import axios, { type AxiosInstance, AxiosError, type AxiosResponse } from 'axios';
+import Cookies from 'js-cookie';
+
+// Constantes para nombres de cookies (deben coincidir con authUtils.ts)
+const ACCESS_TOKEN = 'calendly_access_token';
+const REFRESH_TOKEN = 'calendly_refresh_token';
 
 // Configuración base
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_BASE_URL =  'http://localhost:3000';
 
 // Crear instancia de axios
 const apiClient: AxiosInstance = axios.create({
@@ -16,7 +21,7 @@ const apiClient: AxiosInstance = axios.create({
 // Interceptor para agregar token de autenticación
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('authToken');
+    const token = Cookies.get(ACCESS_TOKEN);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -35,8 +40,8 @@ apiClient.interceptors.response.use(
   (error: AxiosError) => {
     if (error.response?.status === 401) {
       // Token expirado o inválido
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('currentUser');
+      Cookies.remove(ACCESS_TOKEN, { path: '/' });
+      Cookies.remove(REFRESH_TOKEN, { path: '/' });
       window.location.href = '/login';
     }
     return Promise.reject(error);

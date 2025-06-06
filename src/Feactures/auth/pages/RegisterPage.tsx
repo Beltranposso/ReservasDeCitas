@@ -9,7 +9,7 @@ import { Label } from '../../../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../../components/ui/tabs';
 import { FadeIn } from '../../../components/animations/fade-in';
 import * as lucideReact from 'lucide-react';
-import authService from '../authservice';
+import { register } from '../../../config/security/authUtils'; // Cambio principal: usar authUtils en lugar de authService
 import { toast } from 'sonner';
 
 const planDetails = {
@@ -115,8 +115,8 @@ export default function RegisterPage() {
     setIsLoading(true);
     
     try {
-      // Registrar usuario con los datos básicos
-      const response = await authService.register({
+      // Registrar usuario con los datos básicos usando authUtils
+      const response = await register({
         name: formData.name,
         email: formData.email,
         password: formData.password,
@@ -130,7 +130,10 @@ export default function RegisterPage() {
         localStorage.setItem('selectedPlan', formData.selectedPlan);
         
         // Redirección a página de éxito o dashboard
-        navigate('/register/success');
+        // El authUtils ya maneja la redirección automática, pero podemos personalizar según necesites
+        setTimeout(() => {
+          navigate('/dashboard'); // o navigate('/register/success') si tienes esa página
+        }, 500);
       }
     } catch (error: any) {
       console.error('Error durante el registro:', error);

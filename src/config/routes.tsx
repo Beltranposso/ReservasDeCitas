@@ -18,34 +18,41 @@ import Contacs from "../Feactures/Dashboard/contacts/Contacts.page";
 import Intergations from "../Feactures/Dashboard/integrations/integrations.page";
 import AgendacionPage from "../Feactures/Agendacion/AgendacionPage";
 
+// Importar los componentes de protección de rutas
+import { ProtectedRoute, PublicRoute } from "./security/ProtectedRoute";
+
 export const routes: RouteObject[] = [
   {
     path: "/",
     element:<AuthLayaut/>,
     children: [
-      { index: true, element:<div className="h-full w-full bg-amber-300 flex justify-center items-center font-sans">Ladingpage</div>},
-      { path: "login", element: <Loggin></Loggin> },
-      { path: "register", element: <Register></Register> },
-      { path: "Plans", element: <PlansPage></PlansPage> },
+      { index: true, element: <PublicRoute><div className="h-full w-full bg-amber-300 flex justify-center items-center font-sans">Ladingpage</div></PublicRoute> },
+      { path: "login", element: <PublicRoute restricted={true}><Loggin></Loggin></PublicRoute> },
+      { path: "register", element: <PublicRoute restricted={true}><Register></Register></PublicRoute> },
+      { path: "Plans", element: <PublicRoute><PlansPage></PlansPage></PublicRoute> },
       { path: "invitacion", element: (
-        <AgendacionPage
-          anfitrion="Julian Caro Santafe"
-          evento="prueba"
-          duracion="30 min"
-          descripcion="Descripcion"
-        />
+        <PublicRoute>
+          <AgendacionPage
+            anfitrion="Julian Caro Santafe"
+            evento="prueba"
+            duracion="30 min"
+            descripcion="Descripcion"
+          />
+        </PublicRoute>
       ) },
       { path: "*", element: (
-        <div className="h-screen w-full flex flex-col items-center justify-center bg-gradient-to-r from-blue-50 to-blue-100">
-          <div className="flex items-center mb-6">
-            <span className="material-icons text-blue-500 text-4xl mr-3">Programaro</span>
-            <span className="material-icons text-blue-500 text-4xl">Team</span>
+        <PublicRoute>
+          <div className="h-screen w-full flex flex-col items-center justify-center bg-gradient-to-r from-blue-50 to-blue-100">
+            <div className="flex items-center mb-6">
+              <span className="material-icons text-blue-500 text-4xl mr-3">Programaro</span>
+              <span className="material-icons text-blue-500 text-4xl">Team</span>
+            </div>
+            <h1 className="text-4xl font-bold text-gray-800 mb-4">Estamos en producción</h1>
+            <div className="w-16 h-1 bg-blue-500 rounded mb-8"></div>
+            <p className="text-gray-600 text-lg mb-8">Volvemos pronto con nuevas funcionalidades</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
           </div>
-          <h1 className="text-4xl font-bold text-gray-800 mb-4">Estamos en producción</h1>
-          <div className="w-16 h-1 bg-blue-500 rounded mb-8"></div>
-          <p className="text-gray-600 text-lg mb-8">Volvemos pronto con nuevas funcionalidades</p>
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-        </div>
+        </PublicRoute>
       )},
     ],
   },
@@ -54,11 +61,11 @@ export const routes: RouteObject[] = [
     path: "/dashboard",
     element: <DashboardLayout />,
     children: [
-      {   index: true, element:<DashboardPage></DashboardPage>  },
-      { path: "eventos", element: <EventPage></EventPage> },
-      { path: "Metricas", element: <MetricasPagae></MetricasPagae> },
-      { path: "Integraciones", element: <Intergations></Intergations>},
-      { path: "contactos", element: <Contacs></Contacs>},
+      { index: true, element: <ProtectedRoute><DashboardPage></DashboardPage></ProtectedRoute> },
+      { path: "eventos", element: <ProtectedRoute><EventPage></EventPage></ProtectedRoute> },
+      { path: "Metricas", element: <ProtectedRoute requiredRoles={["admin"]}><MetricasPagae></MetricasPagae></ProtectedRoute> },
+      { path: "Integraciones", element: <ProtectedRoute><Intergations></Intergations></ProtectedRoute> },
+      { path: "contactos", element: <ProtectedRoute><Contacs></Contacs></ProtectedRoute> },
     ],
   },
 ];

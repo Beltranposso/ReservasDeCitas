@@ -7,7 +7,7 @@ import { Label } from '../../../components/ui/label';
 import { FadeIn } from "../../../components/animations/fade-in"
 // First install lucide-react: npm install lucide-react
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
-import authService from '../authservice';
+import { login } from '../../../config/security/authUtils'; // Cambio principal: usar authUtils en lugar de authService
 import { toast } from 'sonner';
 
 export default function LoginPage() {
@@ -22,13 +22,14 @@ export default function LoginPage() {
     setIsLoading(true);
     
     try {
-      // Llamada al servicio de autenticación
-      const response = await authService.login({ email, password });
+      // Llamada al authUtils integrado
+      const response = await login({ email, password });
       
       if (response.success) {
         toast.success('¡Bienvenido de nuevo!');
         
-        // Redirección al dashboard
+        // Redirección al dashboard (el authUtils ya maneja esto automáticamente en setAuthTokens)
+        // Pero podemos mantener esta lógica para el toast
         setTimeout(() => {
           navigate('/dashboard');
         }, 500);
