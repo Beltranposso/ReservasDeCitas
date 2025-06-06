@@ -73,6 +73,10 @@ export default function IntegrationsPage() {
       setLoadingIntegrations(true);
       const integrationsData = await integrationsService.getIntegrationsStatus();
       
+      // Verificar si Google Calendar está conectado
+      const isGoogleConnected = integrationsService.isIntegrationActive(integrationsData, 'google_calendar');
+      const googleInfo = integrationsService.getIntegrationInfo(integrationsData, 'google_calendar');
+      
       // Actualizar estado de integraciones basado en los datos del backend
       const videoIntegrations: IntegrationItem[] = [
         {
@@ -80,8 +84,9 @@ export default function IntegrationsPage() {
           name: "Google Meet",
           description: "Integra tus reuniones con Google Meet",
           icon: "https://upload.wikimedia.org/wikipedia/commons/9/9b/Google_Meet_icon_%282020%29.svg",
-          connected: integrationsService.isIntegrationActive(integrationsData, 'google_calendar'),
+          connected: isGoogleConnected, // Google Meet depende de Google Calendar
           provider: 'google_meet',
+          email: googleInfo?.provider_email,
         },
         {
           id: "zoom",
@@ -107,9 +112,9 @@ export default function IntegrationsPage() {
           name: "Google Calendar",
           description: "Sincroniza con tu calendario de Google",
           icon: "https://upload.wikimedia.org/wikipedia/commons/a/a5/Google_Calendar_icon_%282020%29.svg",
-          connected: integrationsService.isIntegrationActive(integrationsData, 'google_calendar'),
+          connected: isGoogleConnected,
           provider: 'google_calendar',
-          email: integrationsService.getIntegrationInfo(integrationsData, 'google_calendar')?.provider_email,
+          email: googleInfo?.provider_email,
         },
         {
           id: "outlook",
@@ -146,7 +151,7 @@ export default function IntegrationsPage() {
     try {
       // Actualizar estado de carga
       setIntegrations(prev => prev.map(i => 
-        i.id === 'gcal' ? { ...i, isLoading: true } : i
+        (i.id === 'gcal' || i.id === 'gmeet') ? { ...i, isLoading: true } : i
       ));
 
       const { auth_url } = await integrationsService.startGoogleAuth();
@@ -157,34 +162,74 @@ export default function IntegrationsPage() {
       toast.error(error.message || 'Error al iniciar conexión con Google');
       // Resetear estado de carga
       setIntegrations(prev => prev.map(i => 
-        i.id === 'gcal' ? { ...i, isLoading: false } : i
+        (i.id === 'gcal' || i.id === 'gmeet') ? { ...i, isLoading: false } : i
       ));
     }
   };
 
   const handleGoogleDisconnect = async () => {
-    if (!confirm('¿Estás seguro de que deseas desconectar Google Calendar?')) {
+    if (!confirm('¿Estás seguro de que deseas desconectar Google Calendar? Esto también desconectará Google Meet.')) {
       return;
     }
 
     try {
       setIntegrations(prev => prev.map(i => 
-        i.id === 'gcal' ? { ...i, isLoading: true } : i
+        (i.id === 'gcal' || i.id === 'gmeet') ? { ...i, isLoading: true } : i
       ));
 
       await integrationsService.disconnectGoogle();
       
-      toast.success('Google Calendar desconectado');
+      toast.success('Google Calendar y Google Meet desconectados');
       
       // Actualizar estado
       setIntegrations(prev => prev.map(i => 
-        i.id === 'gcal' ? { ...i, connected: false, email: undefined, isLoading: false } : i
+        (i.id === 'gcal' || i.id === 'gmeet') ? { 
+          ...i, 
+          connected: false, 
+          email: undefined, 
+          isLoading: false 
+        } : i
       ));
     } catch (error: any) {
       toast.error(error.message || 'Error al desconectar Google Calendar');
       setIntegrations(prev => prev.map(i => 
-        i.id === 'gcal' ? { ...i, isLoading: false } : i
+        (i.id === 'gcal' || i.id === 'gmeet') ? { ...i, isLoading: false } : i
       ));
+    }
+  };
+
+  const handleGoogleMeetAction = async (action: 'connect' | 'disconnect' | 'configure') => {
+    const meetIntegration = integrations.find(i => i.id === 'gmeet');
+    
+    if (action === 'connect') {
+      // Para conectar Google Meet, necesitamos primero conectar Google Calendar
+      if (!meetIntegration?.connected) {
+        toast.info('Conectando con Google Calendar para habilitar Google Meet...');
+        await handleGoogleConnect();
+      }
+    } else if (action === 'disconnect') {
+      await handleGoogleDisconnect();
+    } else if (action === 'configure') {
+      try {
+        setIntegrations(prev => prev.map(i => 
+          i.id === 'gmeet' ? { ...i, isLoading: true } : i
+        ));
+
+        // Probar la integración de Google Meet
+        const status = await integrationsService.getGoogleMeetStatus();
+        
+        if (status && status.connected) {
+          toast.success('Google Meet está funcionando correctamente');
+        } else {
+          toast.warning('Google Meet necesita reconectarse');
+        }
+      } catch (error: any) {
+        toast.error(error.message || 'Error al verificar Google Meet');
+      } finally {
+        setIntegrations(prev => prev.map(i => 
+          i.id === 'gmeet' ? { ...i, isLoading: false } : i
+        ));
+      }
     }
   };
 
@@ -202,6 +247,12 @@ export default function IntegrationsPage() {
         // Abrir modal de configuración o página de configuración
         toast.info('Configuración de Google Calendar próximamente');
       }
+      return;
+    }
+
+    // Google Meet
+    if (integrationId === 'gmeet') {
+      await handleGoogleMeetAction(action);
       return;
     }
 
@@ -264,7 +315,14 @@ export default function IntegrationsPage() {
                             </Badge>
                           )}
                         </CardTitle>
-                        <CardDescription>{integration.description}</CardDescription>
+                        <CardDescription>
+                          {integration.description}
+                          {integration.email && (
+                            <span className="block text-xs mt-1 text-muted-foreground">
+                              {integration.email}
+                            </span>
+                          )}
+                        </CardDescription>
                       </div>
                     </CardHeader>
                     <CardFooter className="flex justify-between border-t pt-4">

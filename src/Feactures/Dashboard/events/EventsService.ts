@@ -1,24 +1,35 @@
 // src/features/dashboard/events/EventsService.ts
-import apiClient, { API_ENDPOINTS, type ApiResponse } from '../../../services/apiclient';
+// VERSIÓN COMPLETA CON MANEJO DE PREGUNTAS
+
 
 export interface EventType {
-  id: number;
-  user_id: number;
+  id?: number;
   name: string;
   description?: string;
   duration_minutes: number;
   location_type: string;
   custom_url: string;
-  requires_confirmation: boolean;
+  requires_confirmation?: boolean;
   min_booking_notice?: number;
   buffer_time?: number;
   daily_limit?: number;
   notifications_enabled?: boolean;
+  user_id?: number;
   created_at?: string;
   updated_at?: string;
 }
 
-export interface CreateEventData {
+export interface EventQuestion {
+  id?: number;
+  event_type_id: number;
+  question: string;
+  is_required: boolean;
+  question_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CreateEventTypeData {
   name: string;
   description?: string;
   duration_minutes: number;
@@ -31,206 +42,682 @@ export interface CreateEventData {
   notifications_enabled?: boolean;
 }
 
-export interface EventQuestion {
-  id?: number;
-  event_type_id?: number;
+export interface CreateEventQuestionData {
   question: string;
   is_required: boolean;
-  question_order: number;
+  question_order?: number;
 }
 
 export interface EventDependencies {
   questions: number;
   bookings: number;
   reminders: number;
+  total_dependencies: number;
+}
+
+export interface EventStats {
+  total: number;
+  active: number;
+  inactive: number;
+  thisMonth: number;
+}
+
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
 }
 
 class EventsService {
-  // Crear nuevo tipo de evento
-  validateCustomUrl(custom_url: string) {
-    throw new Error("Method not implemented.");
+  private readonly API_BASE_URL = 'http://localhost:3000';
+  private readonly baseUrl = '/api/events';
+
+  // Método auxiliar para obtener headers
+  private getHeaders(): HeadersInit {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    return headers;
   }
-  // Obtener todos los tipos de eventos del usuario
-  async getEventTypes(): Promise<EventType[]> {
+
+  // Método auxiliar para manejar respuestas HTTP
+  private async handleResponse<T>(response: Response): Promise<T> {
+    const data = await response.json();
+    
+    console.log(`📡 HTTP ${response.status}:`, {
+      url: response.url,
+      status: response.status,
+      statusText: response.statusText,
+      data
+    });
+
+    if (!response.ok) {
+      const errorMessage = data.message || data.error || `HTTP ${response.status}: ${response.statusText}`;
+      throw new Error(errorMessage);
+    }
+
+    if (!data.success) {
+      throw new Error(data.message || 'La operación no fue exitosa');
+    }
+
+    return data.data;
+  }
+
+  // ========== MÉTODOS DE EVENTOS ==========
+
+  // Crear un nuevo tipo de evento
+  async createEventType(eventData: CreateEventTypeData): Promise<EventType> {
     try {
-      const response = await apiClient.get<ApiResponse<EventType[]>>(API_ENDPOINTS.events.getAll);
-      return response.data.data || [];
+      console.log('🚀 EventsService: Creando nuevo evento');
+      console.log('📝 Datos del evento:', eventData);
+
+      // Validaciones básicas del cliente
+      if (!eventData.name?.trim()) {
+        throw new Error('El nombre del evento es requerido');
+      }
+
+      if (!eventData.duration_minutes || eventData.duration_minutes < 5) {
+        throw new Error('La duración debe ser de al menos 5 minutos');
+      }
+
+      if (!eventData.custom_url?.trim()) {
+        throw new Error('La URL personalizada es requerida');
+      }
+
+      const response = await fetch(`${this.API_BASE_URL}/api/events`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(eventData)
+      });
+
+      const result = await this.handleResponse<EventType>(response);
+      
+      console.log('✅ EventsService: Evento creado exitosamente:', result);
+      return result;
+
     } catch (error: any) {
-      console.error('Error obteniendo eventos:', error);
-      throw new Error(error.response?.data?.message || 'Error al obtener tipos de eventos');
+      console.error('❌ EventsService: Error creando evento:', error);
+      
+      // Mejorar mensajes de error
+      if (error.message.includes('custom_url')) {
+        throw new Error('La URL personalizada ya está en uso. Prueba con otra.');
+      }
+      
+      if (error.message.includes('network') || error.message.includes('fetch')) {
+        throw new Error('Error de conexión. Verifica tu conexión a internet.');
+      }
+      
+      throw new Error(error.message || 'Error inesperado al crear el evento');
     }
   }
 
-  // Obtener un tipo de evento específico
-  async getEventType(eventId: number): Promise<EventType> {
+  // Obtener mis eventos (del usuario autenticado)
+  async getMyEvents(): Promise<EventType[]> {
     try {
-      const response = await apiClient.get<ApiResponse<EventType>>(API_ENDPOINTS.events.getById(eventId));
-      return response.data.data;
+      console.log('🔍 EventsService: Obteniendo mis eventos');
+      
+      const response = await fetch(`${this.API_BASE_URL}/api/events/my-events`, {
+        method: 'GET',
+        headers: this.getHeaders()
+      });
+
+      const result = await this.handleResponse<EventType[]>(response);
+      
+      console.log(`✅ EventsService: ${result.length} eventos propios obtenidos`);
+      return Array.isArray(result) ? result : [];
+
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Error al obtener tipo de evento');
+      console.error('❌ EventsService: Error obteniendo mis eventos:', error);
+      
+      if (error.message.includes('network') || error.message.includes('fetch')) {
+        throw new Error('Error de conexión al obtener tus eventos');
+      }
+      
+      throw new Error(error.message || 'Error al obtener tus eventos');
     }
   }
 
-  // Crear nuevo tipo de evento
-  async createEventType(eventData: CreateEventData): Promise<EventType> {
+  // Obtener detalles completos de un evento (incluyendo preguntas)
+  async getEventDetails(id: number): Promise<EventType & { questions?: EventQuestion[] }> {
     try {
-      const response = await apiClient.post<ApiResponse<EventType>>(API_ENDPOINTS.events.create, eventData);
-      return response.data.data;
+      console.log('🔍 EventsService: Obteniendo detalles completos del evento', id);
+      
+      if (!id || id <= 0) {
+        throw new Error('ID de evento inválido');
+      }
+
+      const response = await fetch(`${this.API_BASE_URL}/api/events/${id}/details`, {
+        method: 'GET',
+        headers: this.getHeaders()
+      });
+
+      const result = await this.handleResponse<EventType & { questions?: EventQuestion[] }>(response);
+      
+      console.log('✅ EventsService: Detalles completos obtenidos:', result);
+      return result;
+
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Error al crear tipo de evento');
+      console.error('❌ EventsService: Error obteniendo detalles del evento:', error);
+      throw new Error(error.message || 'Error al obtener los detalles del evento');
     }
   }
 
-  // Actualizar tipo de evento
-  async updateEventType(eventId: number, eventData: Partial<CreateEventData>): Promise<EventType> {
+  // Obtener todos los tipos de evento
+  async getAllEventTypes(): Promise<EventType[]> {
     try {
-      const response = await apiClient.patch<ApiResponse<EventType>>(
-        API_ENDPOINTS.events.update(eventId), 
-        eventData
-      );
-      return response.data.data;
+      console.log('🔍 EventsService: Obteniendo lista de eventos');
+      
+      const response = await fetch(`${this.API_BASE_URL}/api/events`, {
+        method: 'GET',
+        headers: this.getHeaders()
+      });
+
+      const result = await this.handleResponse<EventType[]>(response);
+      
+      console.log(`✅ EventsService: ${result.length} eventos obtenidos`);
+      return Array.isArray(result) ? result : [];
+
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Error al actualizar tipo de evento');
+      console.error('❌ EventsService: Error obteniendo eventos:', error);
+      
+      // En caso de error, retornar array vacío para no romper la UI
+      if (error.message.includes('network') || error.message.includes('fetch')) {
+        throw new Error('Error de conexión al obtener eventos');
+      }
+      
+      throw new Error(error.message || 'Error al obtener la lista de eventos');
     }
   }
 
-  // Eliminar tipo de evento
-  async deleteEventType(eventId: number): Promise<void> {
+  // Obtener un tipo de evento por ID
+  async getEventType(id: number): Promise<EventType> {
     try {
-      await apiClient.delete(API_ENDPOINTS.events.delete(eventId));
+      console.log('🔍 EventsService: Obteniendo evento por ID:', id);
+      
+      if (!id || id <= 0) {
+        throw new Error('ID de evento inválido');
+      }
+
+      const response = await fetch(`${this.API_BASE_URL}/api/events/${id}`, {
+        method: 'GET',
+        headers: this.getHeaders()
+      });
+
+      const result = await this.handleResponse<EventType>(response);
+      
+      console.log('✅ EventsService: Evento obtenido:', result);
+      return result;
+
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Error al eliminar tipo de evento');
+      console.error('❌ EventsService: Error obteniendo evento:', error);
+      throw new Error(error.message || 'Error al obtener el evento');
     }
   }
 
-  // Obtener dependencias de un evento
-  async getEventDependencies(eventId: number): Promise<EventDependencies> {
+  // Actualizar un tipo de evento
+  async updateEventType(id: number, eventData: Partial<CreateEventTypeData>): Promise<EventType> {
     try {
-      const response = await apiClient.get<ApiResponse<EventDependencies>>(
-        API_ENDPOINTS.events.getDependencies(eventId)
-      );
-      return response.data.data;
+      console.log('🔄 EventsService: Actualizando evento', id, eventData);
+      
+      if (!id || id <= 0) {
+        throw new Error('ID de evento inválido');
+      }
+
+      // Validaciones básicas
+      if (eventData.duration_minutes && eventData.duration_minutes < 5) {
+        throw new Error('La duración debe ser de al menos 5 minutos');
+      }
+
+      const response = await fetch(`${this.API_BASE_URL}/api/events/${id}`, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify(eventData)
+      });
+
+      const result = await this.handleResponse<EventType>(response);
+      
+      console.log('✅ EventsService: Evento actualizado:', result);
+      return result;
+
     } catch (error: any) {
-      console.error('Error obteniendo dependencias:', error);
-      // Si falla, retornar valores por defecto
-      return { questions: 0, bookings: 0, reminders: 0 };
+      console.error('❌ EventsService: Error actualizando evento:', error);
+      
+      if (error.message.includes('custom_url')) {
+        throw new Error('La URL personalizada ya está en uso');
+      }
+      
+      throw new Error(error.message || 'Error al actualizar el evento');
     }
   }
 
-  // Obtener preguntas de un tipo de evento
+  // Eliminar un tipo de evento
+  async deleteEventType(id: number): Promise<{ success: boolean; dependencies?: EventDependencies }> {
+    try {
+      console.log('🗑️ EventsService: Eliminando evento', id);
+      
+      if (!id || id <= 0) {
+        throw new Error('ID de evento inválido');
+      }
+
+      const response = await fetch(`${this.API_BASE_URL}/api/events/${id}`, {
+        method: 'DELETE',
+        headers: this.getHeaders()
+      });
+
+      const data = await response.json();
+      
+      console.log('📡 Respuesta de eliminación:', {
+        status: response.status,
+        data
+      });
+
+      if (!response.ok) {
+        const errorMessage = data.message || `Error HTTP ${response.status}`;
+        throw new Error(errorMessage);
+      }
+
+      if (data.success) {
+        console.log('✅ EventsService: Evento eliminado exitosamente');
+        return {
+          success: true,
+          dependencies: data.dependencies
+        };
+      } else {
+        throw new Error(data.message || 'Error al eliminar evento');
+      }
+
+    } catch (error: any) {
+      console.error('❌ EventsService: Error eliminando evento:', error);
+      
+      if (error.message.includes('datos relacionados') || error.message.includes('constraint')) {
+        throw new Error('No se puede eliminar: el evento tiene reservas o datos relacionados');
+      }
+      
+      throw new Error(error.message || 'Error al eliminar el evento');
+    }
+  }
+
+  // Verificar dependencias antes de eliminar
+  async checkEventDependencies(id: number): Promise<EventDependencies> {
+    try {
+      console.log('🔍 EventsService: Verificando dependencias del evento', id);
+      
+      if (!id || id <= 0) {
+        throw new Error('ID de evento inválido');
+      }
+
+      const response = await fetch(`${this.API_BASE_URL}/api/events/${id}/dependencies`, {
+        method: 'GET',
+        headers: this.getHeaders()
+      });
+
+      const result = await this.handleResponse<EventDependencies>(response);
+      
+      console.log('✅ EventsService: Dependencias verificadas:', result);
+      return result;
+
+    } catch (error: any) {
+      console.error('❌ EventsService: Error verificando dependencias:', error);
+      
+      // Retornar valores por defecto en caso de error
+      return { 
+        questions: 0, 
+        bookings: 0, 
+        reminders: 0,
+        total_dependencies: 0
+      };
+    }
+  }
+
+  // ========== MÉTODOS DE PREGUNTAS ==========
+
+  // ========== MÉTODOS CORRESPONDIENTES A RUTAS BACKEND ==========
+
+  // GET /api/events/:id/questions - Obtener preguntas de un evento
   async getEventQuestions(eventId: number): Promise<EventQuestion[]> {
     try {
-      const response = await apiClient.get<{ success: boolean; data: EventQuestion[] }>(
-        `/api/events/${eventId}/questions`
-      );
-      return response.data.data || [];
+      console.log('❓ EventsService: Obteniendo preguntas del evento', eventId);
+      
+      if (!eventId || eventId <= 0) {
+        throw new Error('ID de evento inválido');
+      }
+
+      const response = await fetch(`${this.API_BASE_URL}/api/events/${eventId}/questions`, {
+        method: 'GET',
+        headers: this.getHeaders()
+      });
+
+      const result = await this.handleResponse<EventQuestion[]>(response);
+      
+      console.log(`✅ EventsService: ${result.length} preguntas obtenidas`);
+      return Array.isArray(result) ? result : [];
+
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Error al obtener preguntas del evento');
+      console.error('❌ EventsService: Error obteniendo preguntas:', error);
+      
+      // En caso de error, retornar array vacío
+      return [];
     }
   }
 
-  // Crear pregunta para evento
-  async createEventQuestion(eventId: number, question: EventQuestion): Promise<EventQuestion> {
+  // POST /api/events/:id/questions - Agregar pregunta a evento
+  async addEventQuestion(eventId: number, questionData: CreateEventQuestionData): Promise<EventQuestion> {
     try {
-      const response = await apiClient.post<{ success: boolean; data: EventQuestion }>(
-        `/api/events/${eventId}/questions`, 
-        question
-      );
-      return response.data.data;
+      console.log('❓ EventsService: Agregando pregunta al evento', eventId, questionData);
+      
+      if (!eventId || eventId <= 0) {
+        throw new Error('ID de evento inválido');
+      }
+
+      if (!questionData.question?.trim()) {
+        throw new Error('El texto de la pregunta es requerido');
+      }
+
+      // Si no se especifica orden, obtener el siguiente disponible
+      if (!questionData.question_order) {
+        const existingQuestions = await this.getEventQuestions(eventId);
+        questionData.question_order = existingQuestions.length + 1;
+      }
+
+      const response = await fetch(`${this.API_BASE_URL}/api/events/${eventId}/questions`, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(questionData)
+      });
+
+      const result = await this.handleResponse<EventQuestion>(response);
+      
+      console.log('✅ EventsService: Pregunta agregada:', result);
+      return result;
+
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Error al crear pregunta');
+      console.error('❌ EventsService: Error agregando pregunta:', error);
+      throw new Error(error.message || 'Error al agregar la pregunta');
     }
   }
 
-  // Actualizar pregunta
-  async updateEventQuestion(eventId: number, questionId: number, question: Partial<EventQuestion>): Promise<EventQuestion> {
+  // ========== MÉTODOS ADICIONALES PARA COMPLETAR LA API ==========
+
+  // Métodos que podrías necesitar agregar al backend más adelante:
+
+  // PATCH /api/events/:id/questions/:questionId - Actualizar pregunta específica
+  async updateEventQuestion(eventId: number, questionId: number, questionData: Partial<CreateEventQuestionData>): Promise<EventQuestion> {
     try {
-      const response = await apiClient.patch<{ success: boolean; data: EventQuestion }>(
-        `/api/events/${eventId}/questions/${questionId}`, 
-        question
-      );
-      return response.data.data;
+      console.log('❓ EventsService: Actualizando pregunta', questionId, questionData);
+      
+      if (!eventId || eventId <= 0) {
+        throw new Error('ID de evento inválido');
+      }
+
+      if (!questionId || questionId <= 0) {
+        throw new Error('ID de pregunta inválido');
+      }
+
+      const response = await fetch(`${this.API_BASE_URL}/api/events/${eventId}/questions/${questionId}`, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify(questionData)
+      });
+
+      const result = await this.handleResponse<EventQuestion>(response);
+      
+      console.log('✅ EventsService: Pregunta actualizada:', result);
+      return result;
+
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Error al actualizar pregunta');
+      console.error('❌ EventsService: Error actualizando pregunta:', error);
+      throw new Error(error.message || 'Error al actualizar la pregunta');
     }
   }
 
-  // Eliminar pregunta
+  // DELETE /api/events/:id/questions/:questionId - Eliminar pregunta específica
   async deleteEventQuestion(eventId: number, questionId: number): Promise<void> {
     try {
-      await apiClient.delete(`/api/events/${eventId}/questions/${questionId}`);
+      console.log('❓ EventsService: Eliminando pregunta', questionId);
+      
+      if (!eventId || eventId <= 0) {
+        throw new Error('ID de evento inválido');
+      }
+
+      if (!questionId || questionId <= 0) {
+        throw new Error('ID de pregunta inválido');
+      }
+
+      const response = await fetch(`${this.API_BASE_URL}/api/events/${eventId}/questions/${questionId}`, {
+        method: 'DELETE',
+        headers: this.getHeaders()
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        const errorMessage = data.message || `Error HTTP ${response.status}`;
+        throw new Error(errorMessage);
+      }
+
+      console.log('✅ EventsService: Pregunta eliminada exitosamente');
+
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Error al eliminar pregunta');
+      console.error('❌ EventsService: Error eliminando pregunta:', error);
+      throw new Error(error.message || 'Error al eliminar la pregunta');
     }
   }
 
-  // Validar disponibilidad de URL personalizada
-  // async validateCustomUrl(url: string): Promise<boolean> {
-  //   try {
-  //     const response = await apiClient.post<{ success: boolean; data: { available: boolean } }>(
-  //       '/api/events/validate-url', 
-  //       { url }
-  //     );
-  //     return response.data.data.available;
-  //   } catch (error: any) {
-  //     return false;
-  //   }
-  // }
+  // PATCH /api/events/:id/questions/reorder - Reordenar preguntas
+  async reorderEventQuestions(eventId: number, questionIds: number[]): Promise<EventQuestion[]> {
+    try {
+      console.log('❓ EventsService: Reordenando preguntas', eventId, questionIds);
+      
+      if (!eventId || eventId <= 0) {
+        throw new Error('ID de evento inválido');
+      }
 
-  // Generar URL sugerida basada en el nombre
+      if (!Array.isArray(questionIds) || questionIds.length === 0) {
+        throw new Error('Lista de IDs de preguntas inválida');
+      }
+
+      const response = await fetch(`${this.API_BASE_URL}/api/events/${eventId}/questions/reorder`, {
+        method: 'PATCH',
+        headers: this.getHeaders(),
+        body: JSON.stringify({ questionIds })
+      });
+
+      const result = await this.handleResponse<EventQuestion[]>(response);
+      
+      console.log('✅ EventsService: Preguntas reordenadas:', result);
+      return result;
+
+    } catch (error: any) {
+      console.error('❌ EventsService: Error reordenando preguntas:', error);
+      throw new Error(error.message || 'Error al reordenar las preguntas');
+    }
+  }
+
+  // Método auxiliar para guardar múltiples preguntas
+  async saveEventQuestions(eventId: number, questions: EventQuestion[]): Promise<EventQuestion[]> {
+    try {
+      console.log('💾 EventsService: Guardando preguntas del evento', eventId, questions);
+      
+      const savedQuestions: EventQuestion[] = [];
+      
+      for (const question of questions) {
+        if (question.id) {
+          // Actualizar pregunta existente
+          const updated = await this.updateEventQuestion(eventId, question.id, {
+            question: question.question,
+            is_required: question.is_required,
+            question_order: question.question_order
+          });
+          savedQuestions.push(updated);
+        } else {
+          // Crear nueva pregunta
+          const created = await this.addEventQuestion(eventId, {
+            question: question.question,
+            is_required: question.is_required,
+            question_order: question.question_order
+          });
+          savedQuestions.push(created);
+        }
+      }
+      
+      console.log('✅ EventsService: Preguntas guardadas exitosamente');
+      return savedQuestions;
+      
+    } catch (error: any) {
+      console.error('❌ EventsService: Error guardando preguntas:', error);
+      throw new Error(error.message || 'Error al guardar las preguntas');
+    }
+  }
+
+  // ========== MÉTODOS AUXILIARES ==========
+
+  // Generar URL sugerida a partir del nombre
   generateSuggestedUrl(name: string): string {
+    if (!name?.trim()) {
+      return '';
+    }
+
     return name
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 50);
+      .trim()
+      .replace(/[^a-z0-9\s\-]/g, '') // Solo letras, números, espacios y guiones
+      .replace(/\s+/g, '-') // Reemplazar espacios con guiones
+      .replace(/-+/g, '-') // Evitar múltiples guiones seguidos
+      .replace(/^-|-$/g, '') // Remover guiones al inicio y final
+      .substring(0, 50); // Limitar longitud
   }
 
-  // Duplicar tipo de evento
-  async duplicateEventType(eventId: number, newName: string): Promise<EventType> {
+  // Validar URL personalizada
+  async validateCustomUrl(url: string, excludeId?: number): Promise<{ valid: boolean; message?: string }> {
     try {
-      const response = await apiClient.post<{ success: boolean; data: EventType }>(
-        `/api/events/${eventId}/duplicate`, 
-        { name: newName }
-      );
-      return response.data.data;
+      if (!url?.trim()) {
+        return { valid: false, message: 'La URL no puede estar vacía' };
+      }
+
+      // Validaciones básicas
+      if (url.length < 3) {
+        return { valid: false, message: 'La URL debe tener al menos 3 caracteres' };
+      }
+
+      if (url.length > 50) {
+        return { valid: false, message: 'La URL no puede exceder 50 caracteres' };
+      }
+
+      // URLs reservadas
+      const reservedUrls = ['admin', 'api', 'www', 'test', 'root', 'system', 'app', 'book', 'calendar'];
+      if (reservedUrls.includes(url.toLowerCase())) {
+        return { valid: false, message: 'Esta URL está reservada' };
+      }
+
+      // Caracteres válidos
+      if (!/^[a-z0-9\-]+$/.test(url)) {
+        return { valid: false, message: 'Solo se permiten letras minúsculas, números y guiones' };
+      }
+
+      return { valid: true };
+
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Error al duplicar tipo de evento');
+      console.error('❌ Error validando URL:', error);
+      return { valid: false, message: 'Error al validar la URL' };
     }
   }
 
-  // Obtener estadísticas de un tipo de evento
-  async getEventStats(eventId: number): Promise<any> {
+  // Obtener estadísticas de eventos
+  async getEventStats(): Promise<EventStats> {
     try {
-      const response = await apiClient.get<ApiResponse<any>>(
-        `/api/events/${eventId}/stats`
-      );
-      return response.data.data;
+      console.log('📊 EventsService: Obteniendo estadísticas');
+      
+      const response = await fetch(`${this.API_BASE_URL}/api/events/stats`, {
+        method: 'GET',
+        headers: this.getHeaders()
+      });
+
+      const result = await this.handleResponse<EventStats>(response);
+      
+      console.log('✅ EventsService: Estadísticas obtenidas:', result);
+      return result;
+
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Error al obtener estadísticas');
+      console.error('❌ EventsService: Error obteniendo estadísticas:', error);
+      return { total: 0, active: 0, inactive: 0, thisMonth: 0 };
     }
   }
 
-  // Obtener mis eventos
-  async getMyEventTypes(): Promise<EventType[]> {
+  // Duplicar un evento existente
+  async duplicateEvent(id: number, newName?: string): Promise<EventType> {
     try {
-      const response = await apiClient.get<ApiResponse<EventType[]>>(API_ENDPOINTS.events.getMyEvents);
-      return response.data.data || [];
+      console.log('📋 EventsService: Duplicando evento', id);
+      
+      if (!id || id <= 0) {
+        throw new Error('ID de evento inválido');
+      }
+
+      const originalEvent = await this.getEventType(id);
+      
+      const timestamp = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+      const defaultNewName = `${originalEvent.name} (Copia ${timestamp})`;
+      
+      const duplicatedEventData: CreateEventTypeData = {
+        name: newName?.trim() || defaultNewName,
+        description: originalEvent.description,
+        duration_minutes: originalEvent.duration_minutes,
+        location_type: originalEvent.location_type,
+        custom_url: this.generateSuggestedUrl(newName || `${originalEvent.custom_url}-copia-${Date.now()}`),
+        requires_confirmation: originalEvent.requires_confirmation,
+        min_booking_notice: originalEvent.min_booking_notice,
+        buffer_time: originalEvent.buffer_time,
+        daily_limit: originalEvent.daily_limit,
+        notifications_enabled: originalEvent.notifications_enabled,
+      };
+      
+      const duplicatedEvent = await this.createEventType(duplicatedEventData);
+      
+      // Duplicar preguntas si existen
+      try {
+        const originalQuestions = await this.getEventQuestions(id);
+        for (const question of originalQuestions) {
+          await this.addEventQuestion(duplicatedEvent.id!, {
+            question: question.question,
+            is_required: question.is_required,
+            question_order: question.question_order
+          });
+        }
+      } catch (questionsError) {
+        console.warn('⚠️ No se pudieron duplicar las preguntas:', questionsError);
+      }
+      
+      console.log('✅ EventsService: Evento duplicado exitosamente:', duplicatedEvent);
+      return duplicatedEvent;
+
     } catch (error: any) {
-      console.error('Error obteniendo mis eventos:', error);
-      throw new Error(error.response?.data?.message || 'Error al obtener mis tipos de eventos');
+      console.error('❌ EventsService: Error duplicando evento:', error);
+      throw new Error(error.message || 'Error al duplicar el evento');
     }
   }
 
-  // Obtener detalles completos de un evento
-  async getEventDetails(eventId: number): Promise<any> {
+  // Método para refrescar la lista después de cambios
+  async refreshEventsList(): Promise<EventType[]> {
     try {
-      const response = await apiClient.get<ApiResponse<any>>(API_ENDPOINTS.events.getDetails(eventId));
-      return response.data.data;
+      console.log('🔄 EventsService: Refrescando lista de eventos');
+      
+      // Pequeña pausa para asegurar que los cambios se hayan procesado
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      return await this.getAllEventTypes();
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Error al obtener detalles del evento');
+      console.error('❌ EventsService: Error refrescando lista:', error);
+      throw error;
     }
   }
 }
 
-export default new EventsService();
+// Exportar instancia singleton
+const eventsService = new EventsService();
+export default eventsService;

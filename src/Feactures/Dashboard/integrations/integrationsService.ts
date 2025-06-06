@@ -1,6 +1,4 @@
 // src/features/dashboard/integrations/integrationsService.ts
-import apiClient, { API_ENDPOINTS, type ApiResponse } from '../../../services/apiclient';
-
 export interface Integration {
   id: number;
   user_id: number;
@@ -55,57 +53,127 @@ export interface AvailabilityCheck {
 }
 
 class IntegrationsService {
+  private readonly baseUrl = 'http://localhost:3000/api/integrations/google';
+
   // Obtener estado de integraciones
   async getIntegrationsStatus(): Promise<Integration[]> {
     try {
-      const response = await apiClient.get<ApiResponse<Integration[]>>(
-        API_ENDPOINTS.integrations.google.getIntegrations
-      );
-      return response.data.data || [];
+      const response = await fetch(`${this.baseUrl}/integrations`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('authToken') && {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          })
+        }
+      });
+
+      const data = await response.json();
+      console.log('📊 Estado de integraciones:', data);
+
+      if (response.ok && data.success) {
+        return data.data || [];
+      } else {
+        console.warn('⚠️ Respuesta inesperada del servidor:', data);
+        return [];
+      }
     } catch (error: any) {
-      console.error('Error obteniendo integraciones:', error);
+      console.error('❌ Error obteniendo integraciones:', error);
       return [];
     }
   }
 
-  // GOOGLE CALENDAR INTEGRATION
+  // GOOGLE CALENDAR/MEET INTEGRATION
 
   // Iniciar proceso de autorización con Google
   async startGoogleAuth(): Promise<{ auth_url: string; state: string }> {
     try {
-      const response = await apiClient.get<ApiResponse<{ auth_url: string; state: string }>>(
-        API_ENDPOINTS.integrations.google.authStart
-      );
+      console.log('🚀 Iniciando autorización con Google...');
       
-      return response.data.data;
+      const response = await fetch(`${this.baseUrl}/auth/start`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('authToken') && {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          })
+        }
+      });
+
+      const data = await response.json();
+      console.log('📡 Respuesta de auth/start:', data);
+
+      if (!response.ok) {
+        throw new Error(data.message || `Error HTTP ${response.status}`);
+      }
+
+      if (data.success && data.data) {
+        return data.data;
+      } else {
+        throw new Error(data.message || 'Respuesta inválida del servidor');
+      }
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Error al iniciar autorización con Google');
+      console.error('❌ Error iniciando autorización:', error);
+      throw new Error(error.message || 'Error al iniciar autorización con Google');
     }
   }
 
   // Manejar callback de Google (llamado desde el componente después de redirigir)
   async handleGoogleCallback(code: string, state: string): Promise<Integration> {
     try {
-      const response = await apiClient.get<ApiResponse<{ integration: Integration }>>(
-        `${API_ENDPOINTS.integrations.google.authCallback}?code=${code}&state=${state}`
-      );
+      console.log('🔄 Procesando callback de Google...', { code: !!code, state: !!state });
       
-      return response.data.data.integration;
+      const response = await fetch(`${this.baseUrl}/auth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('authToken') && {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          })
+        }
+      });
+
+      const data = await response.json();
+      console.log('📡 Respuesta del callback:', data);
+
+      if (!response.ok) {
+        throw new Error(data.message || `Error HTTP ${response.status}`);
+      }
+
+      if (data.success && data.data && data.data.integration) {
+        return data.data.integration;
+      } else {
+        throw new Error(data.message || 'Error procesando autorización');
+      }
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Error al procesar autorización de Google');
+      console.error('❌ Error en callback:', error);
+      throw new Error(error.message || 'Error al procesar autorización de Google');
     }
   }
 
   // Obtener calendarios de Google
   async getGoogleCalendars(): Promise<GoogleCalendar[]> {
     try {
-      const response = await apiClient.get<ApiResponse<GoogleCalendar[]>>(
-        '/api/integrations/google/calendars'
-      );
+      const response = await fetch(`${this.baseUrl}/calendars`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('authToken') && {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          })
+        }
+      });
+
+      const data = await response.json();
       
-      return response.data.data || [];
+      if (!response.ok) {
+        throw new Error(data.message || 'Error al obtener calendarios');
+      }
+      
+      return data.data || [];
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Error al obtener calendarios de Google');
+      console.error('❌ Error obteniendo calendarios:', error);
+      throw new Error(error.message || 'Error al obtener calendarios de Google');
     }
   }
 
@@ -116,24 +184,38 @@ class IntegrationsService {
     calendars?: string[]
   ): Promise<AvailabilityCheck> {
     try {
-      const response = await apiClient.post<ApiResponse<AvailabilityCheck>>(
-        '/api/integrations/google/check-availability', 
-        {
+      const response = await fetch(`${this.baseUrl}/check-availability`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('authToken') && {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          })
+        },
+        body: JSON.stringify({
           start_time: startTime,
           end_time: endTime,
           calendars
-        }
-      );
+        })
+      });
+
+      const data = await response.json();
       
-      return response.data.data;
+      if (response.ok && data.success) {
+        return data.data;
+      } else {
+        console.warn('⚠️ Error verificando disponibilidad:', data);
+        // En caso de error, asumir disponible
+        return { available: true };
+      }
     } catch (error: any) {
-      console.error('Error verificando disponibilidad:', error);
+      console.error('❌ Error verificando disponibilidad:', error);
       // En caso de error, asumir disponible
       return { available: true };
     }
   }
 
-  // Crear evento en Google Calendar
+  // Crear evento en Google Calendar con Google Meet
   async createGoogleEvent(eventData: {
     title: string;
     description?: string;
@@ -144,28 +226,86 @@ class IntegrationsService {
     meetingLink?: boolean;
   }): Promise<GoogleEvent> {
     try {
-      const response = await apiClient.post<ApiResponse<GoogleEvent>>(
-        '/api/integrations/google/events', 
-        eventData
-      );
+      console.log('📅 Creando evento en Google Calendar:', eventData);
       
-      return response.data.data;
+      const response = await fetch(`${this.baseUrl}/create-event`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('authToken') && {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          })
+        },
+        body: JSON.stringify(eventData)
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Error al crear evento');
+      }
+      
+      return data.data;
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Error al crear evento en Google Calendar');
+      console.error('❌ Error creando evento:', error);
+      throw new Error(error.message || 'Error al crear evento en Google Calendar');
     }
   }
 
-  // Desconectar Google Calendar
+  // Crear reunión de Google Meet (wrapper para createGoogleEvent)
+  async createGoogleMeeting(meetingData: {
+    title: string;
+    startTime: string;
+    endTime: string;
+    attendees?: string[];
+    description?: string;
+  }): Promise<any> {
+    try {
+      console.log('📹 Creando reunión de Google Meet:', meetingData);
+      
+      // Crear evento con Google Meet habilitado
+      const eventData = {
+        title: meetingData.title,
+        description: meetingData.description,
+        startTime: meetingData.startTime,
+        endTime: meetingData.endTime,
+        attendees: meetingData.attendees,
+        meetingLink: true // Habilitar Google Meet
+      };
+
+      return await this.createGoogleEvent(eventData);
+    } catch (error: any) {
+      console.error('❌ Error creando reunión de Google Meet:', error);
+      throw new Error(error.message || 'Error al crear reunión de Google Meet');
+    }
+  }
+
+  // Desconectar Google Calendar/Meet
   async disconnectGoogle(integrationId?: number): Promise<void> {
     try {
-      if (integrationId) {
-        await apiClient.delete(API_ENDPOINTS.integrations.google.disconnect(integrationId));
-      } else {
-        // Si no se proporciona ID, usar endpoint genérico
-        await apiClient.delete('/api/integrations/google/disconnect');
+      console.log('🔌 Desconectando Google...', { integrationId });
+      
+      const response = await fetch(`${this.baseUrl}/disconnect`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('authToken') && {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          })
+        },
+        body: integrationId ? JSON.stringify({ integration_id: integrationId }) : undefined
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Error al desconectar');
       }
+      
+      console.log('✅ Google desconectado exitosamente');
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Error al desconectar Google Calendar');
+      console.error('❌ Error desconectando Google:', error);
+      throw new Error(error.message || 'Error al desconectar Google Calendar');
     }
   }
 
@@ -176,32 +316,96 @@ class IntegrationsService {
     error?: string;
   }> {
     try {
-      const response = await apiClient.get<ApiResponse<{ 
-        status: 'healthy' | 'unhealthy';
-        calendars_count?: number;
-        error?: string;
-      }>>(API_ENDPOINTS.integrations.google.healthCheck);
+      const response = await fetch(`${this.baseUrl}/test`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('authToken') && {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          })
+        }
+      });
+
+      const data = await response.json();
       
-      return response.data.data;
+      if (response.ok && data.success) {
+        return data.data;
+      } else {
+        return { 
+          status: 'unhealthy', 
+          error: data.message || 'Error al probar integración' 
+        };
+      }
     } catch (error: any) {
+      console.error('❌ Error probando integración:', error);
       return { 
         status: 'unhealthy', 
-        error: error.response?.data?.message || 'Error al probar integración' 
+        error: error.message || 'Error al probar integración' 
       };
     }
   }
 
-  // ZOOM INTEGRATION (placeholder para futuro)
+  // Obtener información de integración de Google
+  async getGoogleIntegrationInfo(): Promise<any> {
+    try {
+      const response = await fetch(`${this.baseUrl}/info`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('authToken') && {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          })
+        }
+      });
 
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        return data.data;
+      } else {
+        console.warn('⚠️ No se pudo obtener info de integración:', data);
+        return null;
+      }
+    } catch (error: any) {
+      console.error('❌ Error obteniendo información de integración:', error);
+      return null;
+    }
+  }
+
+  // Obtener estado de Google Meet
+  async getGoogleMeetStatus(): Promise<any> {
+    try {
+      const response = await fetch(`${this.baseUrl}/status`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('authToken') && {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          })
+        }
+      });
+
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        return data.data;
+      } else {
+        console.warn('⚠️ No se pudo obtener estado de Google Meet:', data);
+        return null;
+      }
+    } catch (error: any) {
+      console.error('❌ Error obteniendo estado de Google Meet:', error);
+      return null;
+    }
+  }
+
+  // ZOOM INTEGRATION (placeholder para futuro)
   async startZoomAuth(): Promise<{ auth_url: string }> {
-    // Implementar cuando se agregue Zoom
     throw new Error('Integración con Zoom no disponible aún');
   }
 
   // MICROSOFT TEAMS/OUTLOOK (placeholder para futuro)
-
   async startOutlookAuth(): Promise<{ auth_url: string }> {
-    // Implementar cuando se agregue Outlook
     throw new Error('Integración con Outlook no disponible aún');
   }
 
@@ -237,53 +441,6 @@ class IntegrationsService {
     
     const diffInDays = Math.floor(diffInHours / 24);
     return `Expira en ${diffInDays} días`;
-  }
-
-  // GOOGLE MEET INTEGRATION
-
-  // Crear reunión de Google Meet
-  async createGoogleMeeting(meetingData: {
-    title: string;
-    startTime: string;
-    endTime: string;
-    attendees?: string[];
-    description?: string;
-  }): Promise<any> {
-    try {
-      const response = await apiClient.post<ApiResponse<any>>(
-        API_ENDPOINTS.integrations.google.createMeeting,
-        meetingData
-      );
-      return response.data.data;
-    } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Error al crear reunión de Google Meet');
-    }
-  }
-
-  // Obtener información de integración de Google
-  async getGoogleIntegrationInfo(): Promise<any> {
-    try {
-      const response = await apiClient.get<ApiResponse<any>>(
-        API_ENDPOINTS.integrations.google.getInfo
-      );
-      return response.data.data;
-    } catch (error: any) {
-      console.error('Error obteniendo información de integración:', error);
-      return null;
-    }
-  }
-
-  // Obtener estado de Google Meet
-  async getGoogleMeetStatus(): Promise<any> {
-    try {
-      const response = await apiClient.get<ApiResponse<any>>(
-        API_ENDPOINTS.integrations.google.getStatus
-      );
-      return response.data.data;
-    } catch (error: any) {
-      console.error('Error obteniendo estado de Google Meet:', error);
-      return null;
-    }
   }
 }
 
