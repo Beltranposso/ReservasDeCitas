@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { AlertCircle, Check, Clock, Loader2, MapPin, Users, Settings, Globe, X, HelpCircle, Plus, Trash2, GripVertical } from "lucide-react";
 import eventsService from '../EventsService';
 
+
 // Interfaz para las preguntas
 interface EventQuestion {
   id?: number;
@@ -20,14 +21,14 @@ interface EventQuestion {
 }
 
 interface CreateEventFormProps {
-  onEventCreated?: () => void;
+  onEventCreated?: (linkGenerated?: string) => void;
 }
 
 export default function CreateEventForm({ onEventCreated }: CreateEventFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [urlAvailable, setUrlAvailable] = useState<boolean | null>(null);
   const [isCheckingUrl, setIsCheckingUrl] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -42,7 +43,7 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-  
+  const [meetLink, setMeetLink] = useState<string | null>(null);
   // Estado para las preguntas personalizadas
   const [questions, setQuestions] = useState<EventQuestion[]>([]);
 
@@ -62,11 +63,11 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
     }
 
     setIsCheckingUrl(true);
-    
+
     try {
       const validation = await eventsService.validateCustomUrl(url);
       setUrlAvailable(validation.valid);
-      
+
       if (!validation.valid) {
         setErrors(prev => ({ ...prev, custom_url: validation.message || 'Esta URL no está disponible' }));
       } else {
@@ -99,18 +100,18 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     let finalValue: any = value;
-    
+
     if (type === 'number') {
       finalValue = parseInt(value) || 0;
     }
-    
+
     // Validación especial para custom_url
     if (name === 'custom_url') {
       finalValue = value.toLowerCase().replace(/[^a-z0-9-]/g, '');
     }
-    
+
     setFormData(prev => ({ ...prev, [name]: finalValue }));
-    
+
     // Limpiar error del campo
     if (errors[name]) {
       setErrors(prev => {
@@ -121,7 +122,7 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
   };
 
   const handleSelectChange = (name: string, value: string) => {
-    const finalValue = ['duration_minutes', 'min_booking_notice', 'buffer_time', 'daily_limit'].includes(name) 
+    const finalValue = ['duration_minutes', 'min_booking_notice', 'buffer_time', 'daily_limit'].includes(name)
       ? parseInt(value) : value;
     setFormData(prev => ({ ...prev, [name]: finalValue }));
   };
@@ -141,11 +142,13 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
   };
 
   const handleUpdateQuestion = (index: number, field: keyof EventQuestion, value: any) => {
-    const updatedQuestions = questions.map((q, i) => 
+    const updatedQuestions = questions.map((q, i) =>
       i === index ? { ...q, [field]: value } : q
     );
     setQuestions(updatedQuestions);
   };
+
+
 
   const handleDeleteQuestion = (index: number) => {
     const updatedQuestions = questions.filter((_, i) => i !== index);
@@ -162,12 +165,12 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
 
     const updatedQuestions = [...questions];
     [updatedQuestions[index], updatedQuestions[newIndex]] = [updatedQuestions[newIndex], updatedQuestions[index]];
-    
+
     // Actualizar order
     updatedQuestions.forEach((q, i) => {
       q.question_order = i + 1;
     });
-    
+
     setQuestions(updatedQuestions);
   };
 
@@ -237,7 +240,7 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
     try {
       console.log('🚀 Iniciando proceso de creación de evento...');
       console.log('📝 Datos del formulario:', formData);
-      
+
       const dataToSend = {
         ...formData,
         duration_minutes: parseInt(formData.duration_minutes.toString()),
@@ -245,19 +248,52 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
         buffer_time: parseInt(formData.buffer_time.toString()),
         daily_limit: parseInt(formData.daily_limit.toString())
       };
-      
+
       console.log('📤 Datos finales a enviar:', dataToSend);
-      
+      if (formData.location_type === 'google_meet') {
+        try {
+          const now = new Date();
+          const start = new Date(now.getTime() + 10 * 60000); // En 10 minutos
+          const end = new Date(start.getTime() + formData.duration_minutes * 60000); // Duración
+
+          console.log('📅 Fechas generadas:', {
+            startTime: start.toISOString(),
+            endTime: end.toISOString(),
+          });
+
+          const meetEventData = {
+            title: formData.name,
+            description: formData.description || 'Reunión programada',
+            start_time: start.toISOString(), // ✅ Corregido a snake_case
+            end_time: end.toISOString(), // ✅ Corregido a snake_case
+            time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone, // ✅ Corregido a snake_case
+          };
+
+          const createdEvent = await eventsService.createGoogleMeeting(meetEventData);
+          setMeetLink(createdEvent.hangoutLink);
+
+          toast.success('Google Meet creado exitosamente', {
+            action: {
+              label: 'Unirse ahora',
+              onClick: () => window.open(createdEvent.hangoutLink, '_blank'),
+            },
+          });
+        } catch (error: any) {
+          console.error('❌ Error creando reunión con Google Meet:', error);
+          toast.error('No se pudo crear la reunión con Google Meet. Inténtalo nuevamente.');
+          return;
+        }
+      }
       const newEvent = await eventsService.createEventType(dataToSend);
-      
+
       console.log('✅ Evento creado exitosamente:', newEvent);
-      
+
       // Si hay preguntas, crearlas también
       if (questions.length > 0 && newEvent.id) {
         try {
           console.log('📝 Creando preguntas para el evento:', questions);
           const validQuestions = questions.filter(q => q.question.trim() !== '');
-          
+
           for (const question of validQuestions) {
             await eventsService.addEventQuestion(newEvent.id, {
               question: question.question,
@@ -265,18 +301,18 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
               question_order: question.question_order
             });
           }
-          
+
           console.log('✅ Preguntas creadas exitosamente');
         } catch (questionError) {
           console.error('⚠️ Error creando preguntas:', questionError);
           // No fallar todo el proceso por las preguntas
         }
       }
-      
+
       toast.success('¡Tipo de evento creado exitosamente!', {
         description: `El evento "${formData.name}" ha sido creado con la URL: ${formData.custom_url}${questions.length > 0 ? ` y ${questions.length} pregunta(s)` : ''}`
       });
-      
+
       // Limpiar formulario
       setFormData({
         name: "",
@@ -290,7 +326,7 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
         daily_limit: 0,
         notifications_enabled: true,
       });
-      
+
       setErrors({});
       setUrlAvailable(null);
       setQuestions([]);
@@ -298,12 +334,12 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
       // Notificar al componente padre
       if (onEventCreated) {
         console.log('🔄 Notificando al componente padre para actualizar la lista...');
-        onEventCreated();
+        onEventCreated(meetLink || undefined)
       }
-      
+
     } catch (error: any) {
       console.error('❌ Error completo creando evento:', error);
-      
+
       // Manejo específico de errores
       if (error.message.includes('400')) {
         toast.error('Datos inválidos: ' + error.message);
@@ -381,8 +417,8 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
                 <Label htmlFor="duration_minutes">
                   Duración <span className="text-red-500">*</span>
                 </Label>
-                <Select 
-                  value={formData.duration_minutes.toString()} 
+                <Select
+                  value={formData.duration_minutes.toString()}
                   onValueChange={(value) => handleSelectChange('duration_minutes', value)}
                 >
                   <SelectTrigger className={errors.duration_minutes ? "border-red-500" : ""}>
@@ -438,54 +474,82 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="custom_url">
-                URL personalizada <span className="text-red-500">*</span>
-              </Label>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-muted-foreground whitespace-nowrap">
-                  calendly.app/
-                </span>
-                <div className="flex-1 relative">
-                  <Input
-                    id="custom_url"
-                    name="custom_url"
-                    value={formData.custom_url}
-                    onChange={handleInputChange}
-                    placeholder="mi-evento-personalizado"
-                    className={`pr-10 ${errors.custom_url ? "border-red-500" : ""}`}
-                  />
-                  <div className="absolute right-3 top-2.5">
-                    {isCheckingUrl ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    ) : urlAvailable === true ? (
-                      <Check className="h-4 w-4 text-green-500" />
-                    ) : urlAvailable === false ? (
-                      <X className="h-4 w-4 text-red-500" />
-                    ) : null}
+            {/* Campo de URL personalizada */}
+            {formData.location_type !== 'google_meet' && (
+              <div className="space-y-2">
+                <Label htmlFor="custom_url">
+                  URL personalizada <span className="text-red-500">*</span>
+                </Label>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">
+                    calendly.app/
+                  </span>
+                  <div className="flex-1 relative">
+                    <Input
+                      id="custom_url"
+                      name="custom_url"
+                      value={formData.custom_url}
+                      onChange={handleInputChange}
+                      placeholder="mi-evento-personalizado"
+                      className={`pr-10 ${errors.custom_url ? "border-red-500" : ""}`}
+                    />
+                    <div className="absolute right-3 top-2.5">
+                      {isCheckingUrl ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : urlAvailable === true ? (
+                        <Check className="h-4 w-4 text-green-500" />
+                      ) : urlAvailable === false ? (
+                        <X className="h-4 w-4 text-red-500" />
+                      ) : null}
+                    </div>
                   </div>
                 </div>
+                {errors.custom_url ? (
+                  <p className="text-sm text-red-500 flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    {errors.custom_url}
+                  </p>
+                ) : urlAvailable === true ? (
+                  <p className="text-sm text-green-600 flex items-center gap-1">
+                    <Check className="h-4 w-4" />
+                    URL disponible
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Solo letras minúsculas, números y guiones
+                  </p>
+                )}
               </div>
-              {errors.custom_url ? (
-                <p className="text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle className="h-4 w-4" />
-                  {errors.custom_url}
-                </p>
-              ) : urlAvailable === true ? (
-                <p className="text-sm text-green-600 flex items-center gap-1">
-                  <Check className="h-4 w-4" />
-                  URL disponible
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Solo letras minúsculas, números y guiones
-                </p>
-              )}
-            </div>
+            )}
 
+            {/* Mostrar enlace de Google Meet si existe */}
+            {meetLink && (
+              <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500">
+                <h3 className="font-semibold mb-2">Enlace de Google Meet generado:</h3>
+                <p className="mb-2 text-sm truncate">{meetLink}</p>
+                <div className="mt-2 flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigator.clipboard.writeText(meetLink)}
+                  >
+                    Copiar enlace
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => window.open(meetLink, '_blank')}
+                  >
+                    Unirse ahora
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Selector de tipo de ubicación */}
             <div className="space-y-2">
               <Label htmlFor="location_type">Tipo de ubicación</Label>
-              <Select 
+              <Select
                 value={formData.location_type}
                 onValueChange={(value) => handleSelectChange('location_type', value)}
               >
@@ -528,7 +592,6 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
             </div>
           </CardContent>
         </Card>
-
         {/* Configuraciones Avanzadas */}
         <Card className="border-green-200">
           <CardHeader>
@@ -546,7 +609,7 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
                 <Label htmlFor="min_booking_notice">
                   Tiempo mínimo de anticipación
                 </Label>
-                <Select 
+                <Select
                   value={formData.min_booking_notice.toString()}
                   onValueChange={(value) => handleSelectChange('min_booking_notice', value)}
                 >
@@ -575,7 +638,7 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
                 <Label htmlFor="buffer_time">
                   Tiempo entre eventos
                 </Label>
-                <Select 
+                <Select
                   value={formData.buffer_time.toString()}
                   onValueChange={(value) => handleSelectChange('buffer_time', value)}
                 >
@@ -600,7 +663,7 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
                 <Label htmlFor="daily_limit">
                   Límite diario de eventos
                 </Label>
-                <Select 
+                <Select
                   value={formData.daily_limit.toString()}
                   onValueChange={(value) => handleSelectChange('daily_limit', value)}
                 >
@@ -671,9 +734,9 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
                   Agrega preguntas adicionales que los invitados deberán responder al reservar
                 </CardDescription>
               </div>
-              <Button 
-                type="button" 
-                variant="outline" 
+              <Button
+                type="button"
+                variant="outline"
                 size="sm"
                 onClick={handleAddQuestion}
                 className="flex items-center gap-2"
@@ -691,9 +754,9 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
                 <p className="text-sm mb-4">
                   Las preguntas personalizadas te ayudan a obtener información específica de tus invitados antes de la reunión.
                 </p>
-                <Button 
+                <Button
                   type="button"
-                  variant="outline" 
+                  variant="outline"
                   onClick={handleAddQuestion}
                   className="flex items-center gap-2"
                 >
@@ -740,7 +803,7 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
                               #{index + 1}
                             </span>
                           </div>
-                          
+
                           <div className="flex-1 space-y-3">
                             <div className="space-y-2">
                               <Label className="text-sm font-medium">Pregunta</Label>
@@ -752,7 +815,7 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
                                 className="resize-none"
                               />
                             </div>
-                            
+
                             <div className="flex items-center justify-between">
                               <div className="flex items-center space-x-2">
                                 <Switch
@@ -764,7 +827,7 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
                                   {question.is_required && <span className="text-red-500 ml-1">*</span>}
                                 </Label>
                               </div>
-                              
+
                               <Button
                                 type="button"
                                 variant="ghost"
@@ -782,10 +845,10 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
                     </CardContent>
                   </Card>
                 ))}
-                
-                <Button 
+
+                <Button
                   type="button"
-                  variant="outline" 
+                  variant="outline"
                   onClick={handleAddQuestion}
                   className="w-full flex items-center gap-2 border-dashed border-orange-300 text-orange-600 hover:bg-orange-50"
                 >
@@ -808,19 +871,19 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
                   {questions
                     .filter(q => q.question.trim() !== '')
                     .map((question, index) => (
-                    <div key={index} className="space-y-1">
-                      <Label className="text-sm flex items-center gap-1">
-                        {question.question}
-                        {question.is_required && <span className="text-red-500">*</span>}
-                      </Label>
-                      <Textarea 
-                        placeholder="Respuesta del invitado..." 
-                        disabled 
-                        className="bg-gray-50 text-sm" 
-                        rows={2}
-                      />
-                    </div>
-                  ))}
+                      <div key={index} className="space-y-1">
+                        <Label className="text-sm flex items-center gap-1">
+                          {question.question}
+                          {question.is_required && <span className="text-red-500">*</span>}
+                        </Label>
+                        <Textarea
+                          placeholder="Respuesta del invitado..."
+                          disabled
+                          className="bg-gray-50 text-sm"
+                          rows={2}
+                        />
+                      </div>
+                    ))}
                 </div>
               </div>
             )}
@@ -889,7 +952,7 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
                     </>
                   )}
                 </Button>
-                
+
                 <Button
                   variant="outline"
                   onClick={handleClear}

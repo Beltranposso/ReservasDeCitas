@@ -55,6 +55,8 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
   // Estados para el modal de edición
   const [eventQuestions, setEventQuestions] = useState<EventQuestion[]>([]);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [lastGeneratedLink, setLastGeneratedLink] = useState<string | null>(null);
+
 
   // Estado para el formulario de edición
   const [editFormData, setEditFormData] = useState({
@@ -75,10 +77,10 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
     try {
       setLoadingQuestions(true);
       console.log('🔄 Cargando preguntas para evento:', eventId);
-      
+
       const questions = await eventsService.getEventQuestions(eventId);
       console.log('📋 Preguntas cargadas desde EventsService:', questions);
-      
+
       setEventQuestions(questions);
     } catch (error: any) {
       console.error('❌ Error cargando preguntas desde EventsService:', error);
@@ -100,7 +102,7 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
   };
 
   const handleUpdateQuestion = (index: number, field: keyof EventQuestion, value: any) => {
-    const updatedQuestions = eventQuestions.map((q, i) => 
+    const updatedQuestions = eventQuestions.map((q, i) =>
       i === index ? { ...q, [field]: value } : q
     );
     setEventQuestions(updatedQuestions);
@@ -108,7 +110,7 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
 
   const handleDeleteQuestion = async (index: number) => {
     const question = eventQuestions[index];
-    
+
     if (question.id && editingEvent) {
       try {
         await eventsService.deleteEventQuestion(editingEvent.id, question.id);
@@ -119,7 +121,7 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
         return;
       }
     }
-    
+
     const updatedQuestions = eventQuestions.filter((_, i) => i !== index);
     updatedQuestions.forEach((q, i) => {
       q.question_order = i + 1;
@@ -133,11 +135,11 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
 
     const updatedQuestions = [...eventQuestions];
     [updatedQuestions[index], updatedQuestions[newIndex]] = [updatedQuestions[newIndex], updatedQuestions[index]];
-    
+
     updatedQuestions.forEach((q, i) => {
       q.question_order = i + 1;
     });
-    
+
     setEventQuestions(updatedQuestions);
   };
 
@@ -146,12 +148,12 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
 
     try {
       console.log('💾 Guardando preguntas:', eventQuestions);
-      
+
       const validQuestions = eventQuestions.filter(q => q.question.trim() !== '');
-      
+
       await eventsService.saveEventQuestions(editingEvent.id, validQuestions);
       console.log('✅ Preguntas guardadas exitosamente');
-      
+
     } catch (error: any) {
       console.error('❌ Error guardando preguntas:', error);
       throw error; // Re-lanzar para que handleSaveEdit lo maneje
@@ -174,38 +176,38 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
       daily_limit: event.daily_limit || 0,
       notifications_enabled: event.notifications_enabled !== false,
     });
-    
+
     // Cargar preguntas del evento usando el servicio real
     await loadEventQuestions(event.id);
     setIsEditModalOpen(true);
   };
-  
+
   const loadEvents = async () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       console.log('🔄 Cargando eventos desde el EventsService...');
-      
-      // Usar el método correcto del EventsService
+
+
       const eventsList = await eventsService.getAllEventTypes();
-      
+
       console.log('📡 Eventos recibidos del EventsService:', eventsList);
       console.log('📊 Cantidad de eventos:', eventsList.length);
-      
+
       setEvents(eventsList);
-      
+
       if (eventsList.length > 0) {
         toast.success(`Se encontraron ${eventsList.length} eventos`);
       } else {
         console.log('ℹ️ No se encontraron eventos para mostrar');
       }
-      
+
     } catch (err: any) {
       console.error('❌ Error cargando eventos desde EventsService:', err);
       setError(err.message);
       toast.error(`Error al cargar eventos: ${err.message}`);
-      
+
       // En caso de error, mostrar array vacío para no romper la UI
       setEvents([]);
     } finally {
@@ -223,13 +225,13 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
   const handleDeleteEvent = async (eventId: number) => {
     try {
       console.log(`🔍 Verificando dependencias para evento ${eventId}...`);
-      
+
       // Usar el método del EventsService para verificar dependencias
       const deps = await eventsService.checkEventDependencies(eventId);
       console.log('📊 Dependencias encontradas:', deps);
-      
+
       let confirmMessage = "¿Estás seguro de que deseas eliminar este evento?";
-      
+
       if (deps.questions > 0 || deps.bookings > 0 || deps.reminders > 0) {
         confirmMessage += "\n\nEsto también eliminará:";
         if (deps.questions > 0) confirmMessage += `\n• ${deps.questions} pregunta(s) personalizada(s)`;
@@ -237,23 +239,23 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
         if (deps.reminders > 0) confirmMessage += `\n• ${deps.reminders} recordatorio(s)`;
         confirmMessage += "\n\n⚠️ Esta acción no se puede deshacer.";
       }
-      
+
       if (!confirm(confirmMessage)) return;
 
       console.log(`🗑️ Eliminando evento ${eventId} usando EventsService...`);
-      
+
       // Usar el método del EventsService para eliminar
       const result = await eventsService.deleteEventType(eventId);
       console.log('✅ Resultado de eliminación:', result);
 
       toast.success("Evento eliminado correctamente");
-      
+
       // Recargar la lista de eventos
       await loadEvents();
-      
+
     } catch (error: any) {
       console.error('❌ Error eliminando evento desde EventsService:', error);
-      
+
       // Manejo específico de errores
       if (error.message.includes('datos relacionados') || error.message.includes('constraint')) {
         toast.error("No se puede eliminar: el evento tiene reservas o datos relacionados");
@@ -264,22 +266,52 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
   };
 
   // Función para copiar enlace
-  const handleCopyLink = (eventUrl: string) => {
-    const fullUrl = `${window.location.origin}/book/${eventUrl}`;
-    navigator.clipboard.writeText(fullUrl);
-    toast.success("Enlace copiado al portapapeles");
+  const handleCopyLink = async (customUrl: string, locationType: string, meetLink?: string) => {
+    try {
+      if (!customUrl && !meetLink) {
+        toast.error("No hay enlace disponible para copiar");
+        return;
+      }
+    
+      let linkToCopy: string | null = null;
+      let successMessage: string;
+    
+      if (locationType === 'google_meet') {
+        if (meetLink) {
+          linkToCopy = meetLink;
+          successMessage = "Enlace de Google Meet copiado al portapapeles";
+        } else {
+          toast.error("No se encontró el enlace de la reunión");
+          return;
+        }
+      } else {
+        // Enlace de reserva estándar
+        linkToCopy = `${window.location.origin}/book/${customUrl}`;
+        successMessage = "Enlace de reserva copiado al portapapeles";
+      }
+    
+      if (linkToCopy) {
+        await navigator.clipboard.writeText(linkToCopy);
+        toast.success(successMessage);
+      }
+    
+    } catch (error) {
+      console.error('Error al copiar enlace:', error);
+      toast.error("Error al copiar enlace");
+    }
+    
   };
 
   // Función para duplicar evento usando el servicio real
   const handleDuplicateEvent = async (eventId: number, eventName: string) => {
     try {
       console.log(`📋 Duplicando evento ${eventId} usando EventsService...`);
-      
+
       const duplicatedEvent = await eventsService.duplicateEvent(eventId, `${eventName} (Copia)`);
       console.log('✅ Evento duplicado exitosamente:', duplicatedEvent);
-      
+
       toast.success(`Evento duplicado: ${duplicatedEvent.name}`);
-      
+
       // Recargar la lista para mostrar el evento duplicado
       await loadEvents();
     } catch (error: any) {
@@ -314,23 +346,23 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
       // Usar el método del EventsService para actualizar
       const updatedEvent = await eventsService.updateEventType(editingEvent.id, editFormData);
       console.log('✅ Evento actualizado exitosamente:', updatedEvent);
-      
+
       // Guardar también las preguntas
       await handleSaveQuestions();
-      
+
       toast.success('Evento actualizado correctamente');
-      
+
       // Cerrar modal y limpiar estado
       setIsEditModalOpen(false);
       setEditingEvent(null);
       setEventQuestions([]); // Limpiar preguntas al cerrar
-      
+
       // Recargar la lista para mostrar los cambios
       await loadEvents();
-      
+
     } catch (error: any) {
       console.error('❌ Error actualizando evento desde EventsService:', error);
-      
+
       // Manejo específico de errores
       if (error.message.includes('custom_url')) {
         toast.error('La URL personalizada ya está en uso. Prueba con otra.');
@@ -410,7 +442,7 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
             Actualizar
           </Button>
         </div>
-        
+
         {events.map((event, index) => (
           <FadeIn key={`event-${event.id}-${refreshTrigger}`} delay={index * 0.1}>
             <Card className="hover:shadow-md transition-all duration-200 border-l-4 border-l-pink-400">
@@ -439,7 +471,7 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
                       <lucideReact.Edit className="mr-2 h-4 w-4" />
                       Editar evento
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleCopyLink(event.custom_url)}>
+                    <DropdownMenuItem onClick={() => handleCopyLink(event.custom_url, event.location_type, lastGeneratedLink)}>
                       <lucideReact.Copy className="mr-2 h-4 w-4" />
                       Copiar enlace
                     </DropdownMenuItem>
@@ -447,8 +479,8 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
                       <lucideReact.Copy className="mr-2 h-4 w-4" />
                       Duplicar evento
                     </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      className="text-red-600 focus:text-red-600" 
+                    <DropdownMenuItem
+                      className="text-red-600 focus:text-red-600"
                       onClick={() => handleDeleteEvent(event.id)}
                     >
                       <lucideReact.Trash2 className="mr-2 h-4 w-4" />
@@ -489,8 +521,8 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
               </CardContent>
               <CardContent className="pt-0">
                 <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={() => handleEditEvent(event)}
                     className="flex items-center gap-2"
@@ -498,24 +530,24 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
                     <lucideReact.Eye className="h-3.5 w-3.5" />
                     Ver detalles
                   </Button>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
-                    onClick={() => handleCopyLink(event.custom_url)}
+                    onClick={() => handleCopyLink(event.custom_url, event.location_type, lastGeneratedLink)}
                     className="flex items-center gap-2"
                   >
-                    <lucideReact.Copy className="h-3.5 w-3.5" />
-                    Copiar enlace
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                    <lucideReact.Link className="h-3.5 w-3.5" />
+                  Copiar enlace
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
           </FadeIn>
         ))}
-      </div>
+    </div >
 
-      {/* Modal de edición */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+      {/* Modal de edición */ }
+      <Dialog Dialog open = { isEditModalOpen } onOpenChange = { setIsEditModalOpen } >
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -526,7 +558,7 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
               Modifica los detalles de tu evento. Los cambios se guardarán al hacer clic en "Guardar cambios".
             </DialogDescription>
           </DialogHeader>
-          
+
           <Tabs defaultValue="basic" className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="basic">Información Básica</TabsTrigger>
@@ -590,8 +622,8 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
                     <lucideReact.Clock className="h-4 w-4" />
                     Duración *
                   </Label>
-                  <Select 
-                    value={editFormData.duration_minutes.toString()} 
+                  <Select
+                    value={editFormData.duration_minutes.toString()}
                     onValueChange={(value) => handleEditSelectChange('duration_minutes', value)}
                   >
                     <SelectTrigger>
@@ -613,8 +645,8 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
                     <lucideReact.Settings className="h-4 w-4" />
                     Ubicación *
                   </Label>
-                  <Select 
-                    value={editFormData.location_type} 
+                  <Select
+                    value={editFormData.location_type}
                     onValueChange={(value) => handleEditSelectChange('location_type', value)}
                   >
                     <SelectTrigger>
@@ -734,7 +766,7 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
                                   <lucideReact.ChevronDown className="h-3 w-3" />
                                 </Button>
                               </div>
-                              
+
                               <div className="flex-1 space-y-3">
                                 <div className="flex items-center gap-2">
                                   <Badge variant="outline" className="text-xs">
@@ -746,7 +778,7 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
                                     </Badge>
                                   )}
                                 </div>
-                                
+
                                 <Textarea
                                   value={question.question}
                                   onChange={(e) => handleUpdateQuestion(index, 'question', e.target.value)}
@@ -754,7 +786,7 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
                                   rows={2}
                                   className="resize-none"
                                 />
-                                
+
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2">
                                     <Switch
@@ -763,7 +795,7 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
                                     />
                                     <Label className="text-sm">Pregunta obligatoria</Label>
                                   </div>
-                                  
+
                                   <Button
                                     variant="ghost"
                                     size="sm"
@@ -807,8 +839,8 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
           </Tabs>
 
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setIsEditModalOpen(false);
                 setEventQuestions([]); // Limpiar preguntas
@@ -818,7 +850,7 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
             >
               Cancelar
             </Button>
-            <Button 
+            <Button
               onClick={handleSaveEdit}
               disabled={isUpdating}
               className="bg-pink-400 hover:bg-pink-500"
@@ -837,7 +869,7 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog >
     </>
   );
 }
@@ -845,26 +877,27 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
 export default function EventsPage() {
   const [activeTab, setActiveTab] = useState("types");
   const [refreshKey, setRefreshKey] = useState(0);
+  
 
   const handleCreateEventClick = () => {
     setActiveTab("create");
   }
 
   // Función para actualizar la lista después de crear evento
-  const handleEventCreated = () => {
+  const handleEventCreated = (linkGenerated?: string) => {
     console.log('🎉 Evento creado, actualizando lista...');
-    
-    // Incrementar refreshKey para forzar recarga
     setRefreshKey(prev => {
       console.log('🔄 Cambiando refreshKey de', prev, 'a', prev + 1);
       return prev + 1;
     });
-    
-    // Cambiar a la pestaña de eventos
+  
     setActiveTab("types");
-    
-    console.log('🔄 Lista de eventos debería actualizarse ahora');
-  }
+  
+    if (linkGenerated) {
+      navigator.clipboard.writeText(linkGenerated);  // Copiar automáticamente
+      toast.success("Enlace de Google Meet copiado al portapapeles automáticamente");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -873,7 +906,7 @@ export default function EventsPage() {
           <h1 className="text-2xl font-bold">Eventos</h1>
           <p className="text-muted-foreground">Gestiona tus tipos de eventos y configuraciones</p>
         </div>
-        <Button 
+        <Button
           className="gap-2 bg-pink-400 text-white hover:bg-pink-500"
           onClick={handleCreateEventClick}
         >

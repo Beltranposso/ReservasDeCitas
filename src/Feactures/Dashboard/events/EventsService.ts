@@ -72,7 +72,46 @@ export interface ApiResponse<T> {
 class EventsService {
   private readonly API_BASE_URL = 'http://localhost:3000';
   private readonly baseUrl = '/api/events';
+  
 
+  // ========== MÉTODOS DE GOOGLE ==========
+
+  // Definición de la interfaz para los eventos de Google
+
+
+  async createGoogleMeeting(eventData: {
+    title: string;
+    description?: string;
+    startTime: string; // ISO 8601
+    endTime: string; // ISO 8601
+    timeZone?: string;
+    attendees?: string[];
+  }): Promise<GoogleEvent> {
+    try {
+      console.log('📹 Preparando evento con Google Meet:', eventData);
+
+      const response = await fetch(`${this.API_BASE_URL}/api/integrations/google/meetings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('authToken')}`
+        },
+        body: JSON.stringify(eventData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error al crear evento');
+      }
+
+      const data = await response.json();
+      return data.data;
+    } catch (error: any) {
+      console.error('❌ Error al crear evento con Google Meet:', error);
+      throw new Error(error.message || 'No se pudo crear el evento con Google Meet');
+    }
+  }
+  
   // Método auxiliar para obtener headers
   private getHeaders(): HeadersInit {
     const headers: HeadersInit = {
@@ -218,7 +257,6 @@ class EventsService {
         method: 'GET',
         headers: this.getHeaders()
       });
-
       const result = await this.handleResponse<EventType[]>(response);
       
       console.log(`✅ EventsService: ${result.length} eventos obtenidos`);
