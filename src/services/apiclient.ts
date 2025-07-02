@@ -95,12 +95,41 @@ export const API_ENDPOINTS = {
     create: '/api/events/',
     getAll: '/api/events/',
     getMyEvents: '/api/events/my-events',
+    stats: '/api/events/stats',
+    checkCustomUrl: (url: string) => `/api/events/check-url/${url}`,
+    getByUser: (userId: number) => `/api/events/user/${userId}`,
     getById: (id: number) => `/api/events/${id}`,
     getDetails: (id: number) => `/api/events/${id}/details`,
     getDependencies: (id: number) => `/api/events/${id}/dependencies`,
     update: (id: number) => `/api/events/${id}`,
     delete: (id: number) => `/api/events/${id}`,
+    duplicate: (id: number) => `/api/events/${id}/duplicate`,
+    
+    // Gestión de preguntas
+    getQuestions: (id: number) => `/api/events/${id}/questions`,
     addQuestion: (id: number) => `/api/events/${id}/questions`,
+    updateQuestion: (id: number, questionId: number) => `/api/events/${id}/questions/${questionId}`,
+    deleteQuestion: (id: number, questionId: number) => `/api/events/${id}/questions/${questionId}`,
+    reorderQuestions: (id: number) => `/api/events/${id}/questions/reorder`,
+  },
+  
+  // 👥 CONTACTOS (/api/contacts)
+  contacts: {
+    create: '/api/contacts/',
+    getAll: '/api/contacts/',
+    search: '/api/contacts/search',
+    getById: (id: number) => `/api/contacts/${id}`,
+    update: (id: number) => `/api/contacts/${id}`,
+    delete: (id: number) => `/api/contacts/${id}`,
+    getByEmail: (email: string) => `/api/contacts/email/${email}`,
+    
+    // Asociaciones con tipos de eventos
+    getEventTypes: (contactId: number) => `/api/contacts/${contactId}/event-types`,
+    associateWithEventType: (contactId: number) => `/api/contacts/${contactId}/event-types`,
+    dissociateFromEventType: (contactId: number, eventTypeId: number) => `/api/contacts/${contactId}/event-types/${eventTypeId}`,
+    
+    // Estadísticas del contacto
+    getStats: (contactId: number) => `/api/contacts/${contactId}/stats`,
   },
   
   // 📋 RESERVAS (/api/bookings)

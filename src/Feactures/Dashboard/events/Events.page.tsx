@@ -266,41 +266,29 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
   };
 
   // Función para copiar enlace
-  const handleCopyLink = async (customUrl: string, locationType: string, meetLink?: string) => {
-    try {
-      if (!customUrl && !meetLink) {
-        toast.error("No hay enlace disponible para copiar");
-        return;
-      }
-    
-      let linkToCopy: string | null = null;
-      let successMessage: string;
-    
-      if (locationType === 'google_meet') {
-        if (meetLink) {
-          linkToCopy = meetLink;
-          successMessage = "Enlace de Google Meet copiado al portapapeles";
-        } else {
-          toast.error("No se encontró el enlace de la reunión");
-          return;
-        }
-      } else {
-        // Enlace de reserva estándar
-        linkToCopy = `${window.location.origin}/book/${customUrl}`;
-        successMessage = "Enlace de reserva copiado al portapapeles";
-      }
-    
-      if (linkToCopy) {
-        await navigator.clipboard.writeText(linkToCopy);
-        toast.success(successMessage);
-      }
-    
-    } catch (error) {
-      console.error('Error al copiar enlace:', error);
-      toast.error("Error al copiar enlace");
+  const handleCopyLink = async (eventId: number, locationType: string, meetLink?: string) => {
+  try {
+    let linkToCopy: string | null = null;
+    let successMessage: string;
+
+    if (locationType === 'google_meet' && meetLink) {
+      linkToCopy = meetLink;
+      successMessage = "Enlace de Google Meet copiado al portapapeles";
+    } else {
+      linkToCopy = `${window.location.origin}/book/${eventId}`;
+      successMessage = "Enlace de agendación copiado al portapapeles";
     }
-    
-  };
+
+    if (linkToCopy) {
+      await navigator.clipboard.writeText(linkToCopy);
+      toast.success(successMessage);
+    }
+  } catch (error) {
+    console.error('Error al copiar enlace:', error);
+    toast.error("Error al copiar enlace");
+  }
+};
+
 
   // Función para duplicar evento usando el servicio real
   const handleDuplicateEvent = async (eventId: number, eventName: string) => {
@@ -471,10 +459,10 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
                       <lucideReact.Edit className="mr-2 h-4 w-4" />
                       Editar evento
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleCopyLink(event.custom_url, event.location_type, lastGeneratedLink)}>
-                      <lucideReact.Copy className="mr-2 h-4 w-4" />
-                      Copiar enlace
-                    </DropdownMenuItem>
+                 <DropdownMenuItem onClick={() => handleCopyLink(event.id, event.location_type, lastGeneratedLink)}>
+  <lucideReact.Copy className="mr-2 h-4 w-4" />
+  Copiar enlace
+</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleDuplicateEvent(event.id, event.name)}>
                       <lucideReact.Copy className="mr-2 h-4 w-4" />
                       Duplicar evento
@@ -530,15 +518,16 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
                     <lucideReact.Eye className="h-3.5 w-3.5" />
                     Ver detalles
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleCopyLink(event.custom_url, event.location_type, lastGeneratedLink)}
-                    className="flex items-center gap-2"
-                  >
-                    <lucideReact.Link className="h-3.5 w-3.5" />
-                  Copiar enlace
-                </Button>
+               <Button
+  variant="outline"
+  size="sm"
+  onClick={() => handleCopyLink(event.id, event.location_type, lastGeneratedLink)}
+  className="flex items-center gap-2"
+>
+  <lucideReact.Link className="h-3.5 w-3.5" />
+  Copiar enlace
+</Button>
+
               </div>
             </CardContent>
           </Card>

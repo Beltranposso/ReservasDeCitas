@@ -17,7 +17,7 @@ import EventPage from "../Feactures/Dashboard/events/Events.page";
 import Contacs from "../Feactures/Dashboard/contacts/Contacts.page";
 import Intergations from "../Feactures/Dashboard/integrations/integrations.page";
 import AgendacionPage from "../Feactures/Agendacion/AgendacionPage";
-
+import AgendacionPageWrapper from "../Feactures/Agendacion/AgendacionPageWrapper";
 export const routes: RouteObject[] = [
   {
     path: "/",
@@ -27,14 +27,7 @@ export const routes: RouteObject[] = [
       { path: "login", element: <Loggin></Loggin> },
       { path: "register", element: <Register></Register> },
       { path: "Plans", element: <PlansPage></PlansPage> },
-      { path: "invitacion", element: (
-        <AgendacionPage
-          anfitrion="Julian Caro Santafe"
-          evento="prueba"
-          duracion="30 min"
-          descripcion="Descripcion"
-        />
-      ) },
+      { path: "book/:eventId", element: <AgendacionPageWrapper /> },
       { path: "*", element: (
         <div className="h-screen w-full flex flex-col items-center justify-center bg-gradient-to-r from-blue-50 to-blue-100">
           <div className="flex items-center mb-6">
