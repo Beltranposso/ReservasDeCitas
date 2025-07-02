@@ -152,7 +152,7 @@ const CalendarioSelector: React.FC<CalendarioSelectorProps> = ({ onSelectDay, on
         <div className="mt-6 text-sm text-gray-700">
           <div className="font-bold mb-2">Zona horaria</div>
           <div className="relative">
-            <button 
+            <button
               className="w-full flex items-center justify-between border border-gray-300 rounded-md p-2 focus:ring-2 focus:ring-[#44a58c] focus:outline-none"
               onClick={() => setMostrarZonas(!mostrarZonas)}
             >
