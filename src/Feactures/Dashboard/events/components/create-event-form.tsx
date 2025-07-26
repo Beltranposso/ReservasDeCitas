@@ -3,6 +3,9 @@ import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
 import { Textarea } from "../../../../components/ui/textarea";
+import { FadeIn } from "../../../../components/animations/fade-in";
+import { AnimatedCard } from "../../../../components/animations/animated-card";
+import { StaggerContainer } from "../../../../components/animations/stagger-container";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
 import { Switch } from "../../../../components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../../components/ui/card";
@@ -19,7 +22,19 @@ interface EventQuestion {
   is_required: boolean;
   question_order: number;
 }
+interface ScheduleDay {
+  day: string;
+  label: string;
+  available: boolean;
+  start_time?: string;
+  end_time?: string;
+}
 
+interface Schedule {
+  timezone: string;
+  use_default_hours: boolean;
+  days: ScheduleDay[];
+}
 interface CreateEventFormProps {
   onEventCreated?: (linkGenerated?: string) => void;
 }
@@ -46,7 +61,19 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
   const [meetLink, setMeetLink] = useState<string | null>(null);
   // Estado para las preguntas personalizadas
   const [questions, setQuestions] = useState<EventQuestion[]>([]);
-
+  const [schedule, setSchedule] = useState<Schedule>({
+  timezone: 'America/Bogota',
+  use_default_hours: true,
+  days: [
+    { day: 'sunday', label: 'Domingo', available: false },
+    { day: 'monday', label: 'Lunes', available: true, start_time: '09:00', end_time: '17:00' },
+    { day: 'tuesday', label: 'Martes', available: true, start_time: '09:00', end_time: '17:00' },
+    { day: 'wednesday', label: 'Miércoles', available: true, start_time: '09:00', end_time: '17:00' },
+    { day: 'thursday', label: 'Jueves', available: true, start_time: '09:00', end_time: '17:00' },
+    { day: 'friday', label: 'Viernes', available: true, start_time: '09:00', end_time: '17:00' },
+    { day: 'saturday', label: 'Sábado', available: false }
+  ]
+});
   // Generar URL sugerida cuando cambie el nombre
   useEffect(() => {
     if (formData.name && !formData.custom_url) {
@@ -243,11 +270,23 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
 
       const dataToSend = {
         ...formData,
-        duration_minutes: parseInt(formData.duration_minutes.toString()),
-        min_booking_notice: parseInt(formData.min_booking_notice.toString()),
-        buffer_time: parseInt(formData.buffer_time.toString()),
-        daily_limit: parseInt(formData.daily_limit.toString())
+      duration_minutes: parseInt(formData.duration_minutes.toString()),
+  min_booking_notice: parseInt(formData.min_booking_notice.toString()),
+  buffer_time: parseInt(formData.buffer_time.toString()),
+  daily_limit: parseInt(formData.daily_limit.toString()),
+   schedule: {
+    timezone: schedule.timezone,
+    use_default_hours: schedule.use_default_hours,
+    available_days: schedule.days
+      .filter(day => day.available)
+      .map(day => ({
+        day_of_week: day.day,
+        start_time: day.start_time,
+        end_time: day.end_time
+      }))
+  }
       };
+      
 
       console.log('📤 Datos finales a enviar:', dataToSend);
       if (formData.location_type === 'google_meet') {
@@ -358,8 +397,97 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
       setIsLoading(false);
     }
   };
+const handleScheduleToggle = (dayIndex: number, available: boolean) => {
+  setSchedule(prev => ({
+    ...prev,
+    days: prev.days.map((day, index) => 
+      index === dayIndex 
+        ? { 
+            ...day, 
+            available,
+            start_time: available && !day.start_time ? '09:00' : day.start_time,
+            end_time: available && !day.end_time ? '17:00' : day.end_time
+          }
+        : day
+    )
+  }));
+};
 
+const handleScheduleTimeChange = (dayIndex: number, field: 'start_time' | 'end_time', value: string) => {
+  const time24h = convertTo24Hour(value);
+  
+  setSchedule(prev => ({
+    ...prev,
+    days: prev.days.map((day, index) => 
+      index === dayIndex ? { ...day, [field]: time24h } : day
+    )
+  }));
+};
+
+const convertTo24Hour = (time12h: string): string => {
+  const [time, period] = time12h.split(' ');
+  const [hours, minutes] = time.split(':');
+  let hour24 = parseInt(hours);
+  
+  if (period.includes('p. m.') && hour24 !== 12) {
+    hour24 += 12;
+  } else if (period.includes('a. m.') && hour24 === 12) {
+    hour24 = 0;
+  }
+  
+  return `${hour24.toString().padStart(2, '0')}:${minutes || '00'}`;
+};
+
+const convertTo12Hour = (time24h: string): string => {
+  const [hours, minutes] = time24h.split(':');
+  const hour = parseInt(hours);
+  const ampm = hour < 12 ? 'a. m.' : 'p. m.';
+  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return `${displayHour}:${minutes} ${ampm}`;
+};
+
+const handleEnableAllDays = () => {
+  setSchedule(prev => ({
+    ...prev,
+    days: prev.days.map(day => ({
+      ...day,
+      available: true,
+      start_time: day.start_time || '09:00',
+      end_time: day.end_time || '17:00'
+    }))
+  }));
+};
+
+const getAvailabilityStats = () => {
+  const availableDays = schedule.days.filter(day => day.available).length;
+  const totalHours = schedule.days
+    .filter(day => day.available && day.start_time && day.end_time)
+    .reduce((total, day) => {
+      const start = parseInt(day.start_time!.split(':')[0]);
+      const end = parseInt(day.end_time!.split(':')[0]);
+      return total + (end - start);
+    }, 0);
+  
+  return {
+    availableDays,
+    unavailableDays: 7 - availableDays,
+    totalHours
+  };
+};
   const handleClear = () => {
+    setSchedule({
+  timezone: 'America/Bogota',
+  use_default_hours: true,
+  days: [
+    { day: 'sunday', label: 'Domingo', available: false },
+    { day: 'monday', label: 'Lunes', available: true, start_time: '09:00', end_time: '17:00' },
+    { day: 'tuesday', label: 'Martes', available: true, start_time: '09:00', end_time: '17:00' },
+    { day: 'wednesday', label: 'Miércoles', available: true, start_time: '09:00', end_time: '17:00' },
+    { day: 'thursday', label: 'Jueves', available: true, start_time: '09:00', end_time: '17:00' },
+    { day: 'friday', label: 'Viernes', available: true, start_time: '09:00', end_time: '17:00' },
+    { day: 'saturday', label: 'Sábado', available: false }
+  ]
+});
     setFormData({
       name: "",
       description: "",
@@ -721,6 +849,168 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
           </CardContent>
         </Card>
 
+{/*  */}
+
+<FadeIn direction="up" delay={0.4}>
+  <AnimatedCard className="border-indigo-200">
+    <CardHeader>
+      <CardTitle className="flex items-center gap-2">
+        <Clock className="h-5 w-5 text-indigo-500" />
+        Horarios de Disponibilidad
+      </CardTitle>
+      <CardDescription>
+        Define cuándo estás disponible para este tipo de evento
+      </CardDescription>
+    </CardHeader>
+    <CardContent className="space-y-6">
+      {/* Selector de horas laborables predeterminadas */}
+      <div className="flex items-center justify-between p-4 bg-indigo-50/50 rounded-lg border border-indigo-200">
+        <div className="space-y-1">
+          <Label className="text-base font-medium text-indigo-900">
+            Horas laborables
+          </Label>
+          <p className="text-sm text-indigo-700">
+            Usar horarios predeterminados (9:00 a.m. - 5:00 p.m., lunes a viernes)
+          </p>
+        </div>
+        <Badge variant="secondary" className="bg-indigo-100 text-indigo-800">
+          Predeterminado
+        </Badge>
+      </div>
+
+      {/* Horarios por día de la semana */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Label className="text-base font-medium">Horarios personalizados</Label>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleEnableAllDays}
+            className="text-xs"
+          >
+            Habilitar todos
+          </Button>
+        </div>
+
+        <StaggerContainer staggerDelay={0.05} className="space-y-3">
+          {schedule.days.map((dayConfig, index) => (
+            <div 
+              key={dayConfig.day}
+              className={`flex items-center justify-between p-3 rounded-lg border transition-all duration-200 ${
+                dayConfig.available 
+                  ? 'bg-green-50/50 border-green-200 hover:bg-green-50' 
+                  : 'bg-gray-50/50 border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="min-w-[90px]">
+                  <span className={`text-sm font-medium ${
+                    dayConfig.available ? 'text-green-900' : 'text-gray-500'
+                  }`}>
+                    {dayConfig.label}
+                  </span>
+                </div>
+                
+                {dayConfig.available ? (
+                  <div className="flex items-center gap-3 flex-1">
+                    <Select 
+                      value={dayConfig.start_time ? convertTo12Hour(dayConfig.start_time) : '9:00 a. m.'}
+                      onValueChange={(value) => handleScheduleTimeChange(index, 'start_time', value)}
+                    >
+                      <SelectTrigger className="w-32 h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 24 }, (_, i) => {
+                          const ampm = i < 12 ? 'a. m.' : 'p. m.';
+                          const displayHour = i === 0 ? 12 : i > 12 ? (i - 12) : i;
+                          return (
+                            <SelectItem key={i} value={`${displayHour}:00 ${ampm}`}>
+                              {displayHour}:00 {ampm}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                    
+                    <span className="text-gray-400 text-xs">-</span>
+                    
+                    <Select 
+                      value={dayConfig.end_time ? convertTo12Hour(dayConfig.end_time) : '5:00 p. m.'}
+                      onValueChange={(value) => handleScheduleTimeChange(index, 'end_time', value)}
+                    >
+                      <SelectTrigger className="w-32 h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 24 }, (_, i) => {
+                          const ampm = i < 12 ? 'a. m.' : 'p. m.';
+                          const displayHour = i === 0 ? 12 : i > 12 ? (i - 12) : i;
+                          return (
+                            <SelectItem key={i} value={`${displayHour}:00 ${ampm}`}>
+                              {displayHour}:00 {ampm}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="flex-1">
+                    <span className="text-xs text-gray-500">Indisponible</span>
+                  </div>
+                )}
+              </div>
+              
+              <Switch
+                checked={dayConfig.available}
+                onCheckedChange={(checked) => handleScheduleToggle(index, checked)}
+                size="sm"
+              />
+            </div>
+          ))}
+        </StaggerContainer>
+      </div>
+
+      {/* Zona horaria */}
+      <div className="pt-4 border-t">
+        <div className="flex items-center gap-3">
+          <Globe className="h-4 w-4 text-muted-foreground" />
+          <div className="flex-1">
+            <Label className="text-sm font-medium">Zona horaria</Label>
+            <p className="text-xs text-muted-foreground">America/Bogotá</p>
+          </div>
+          <Button variant="outline" size="sm" className="text-xs">
+            Editar disponibilidad
+          </Button>
+        </div>
+      </div>
+
+      {/* Resumen de disponibilidad */}
+      <div className="bg-blue-50/50 border border-blue-200 rounded-lg p-4">
+        <h4 className="font-medium mb-2 text-blue-900 flex items-center gap-2">
+          <Users className="h-4 w-4" />
+          Resumen de disponibilidad
+        </h4>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            <span className="text-green-700">{getAvailabilityStats().availableDays} días disponibles</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+            <span className="text-gray-600">{getAvailabilityStats().unavailableDays} días no disponibles</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+            <span className="text-blue-700">{getAvailabilityStats().totalHours} horas/semana</span>
+          </div>
+        </div>
+      </div>
+    </CardContent>
+  </AnimatedCard>
+</FadeIn>
+
         {/* Preguntas Personalizadas */}
         <Card className="border-orange-200">
           <CardHeader>
@@ -916,6 +1206,7 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
                   <Badge variant="outline">
                     Máx. {formData.daily_limit} por día
                   </Badge>
+                  
                 )}
                 {questions.length > 0 && (
                   <Badge variant="outline" className="flex items-center gap-1">
@@ -923,6 +1214,12 @@ export default function CreateEventForm({ onEventCreated }: CreateEventFormProps
                     {questions.filter(q => q.question.trim() !== '').length} pregunta{questions.filter(q => q.question.trim() !== '').length !== 1 ? 's' : ''}
                   </Badge>
                 )}
+                {getAvailabilityStats().availableDays > 0 && (
+  <Badge variant="outline" className="flex items-center gap-1">
+    <Clock className="h-3 w-3" />
+    {getAvailabilityStats().availableDays} días, {getAvailabilityStats().totalHours}h/sem
+  </Badge>
+)}
               </div>
 
               {formData.name && formData.custom_url && (
