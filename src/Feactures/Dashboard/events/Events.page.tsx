@@ -44,6 +44,14 @@ interface EventQuestion {
   question_order: number;
 }
 
+// Interfaz para los datos del modal de compartir
+interface ShareModalData {
+  eventId: number;
+  eventName: string;
+  bookingUrl: string;
+  embedUrl: string;
+}
+
 // Componente de lista de eventos
 function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
   const [events, setEvents] = useState<EventType[]>([]);
@@ -52,11 +60,23 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
   const [editingEvent, setEditingEvent] = useState<EventType | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  
   // Estados para el modal de edición
   const [eventQuestions, setEventQuestions] = useState<EventQuestion[]>([]);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [lastGeneratedLink, setLastGeneratedLink] = useState<string | null>(null);
 
+  // Estados para el modal de compartir
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareData, setShareData] = useState<ShareModalData | null>(null);
+  const [selectedTab, setSelectedTab] = useState("link");
+  const [buttonText, setButtonText] = useState("Reservar mi Cal");
+  const [buttonPosition, setButtonPosition] = useState("bottom-right");
+  const [buttonColor, setButtonColor] = useState("#000000");
+  const [textColor, setTextColor] = useState("#FFFFFF");
+  const [embedTheme, setEmbedTheme] = useState("auto");
+  const [hideEventDetails, setHideEventDetails] = useState(false);
+  const [brandColor, setBrandColor] = useState("#292929");
 
   // Estado para el formulario de edición
   const [editFormData, setEditFormData] = useState({
@@ -71,6 +91,121 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
     daily_limit: 0,
     notifications_enabled: true,
   });
+
+  // Función para abrir el modal de compartir
+  const handleShareEvent = (event: EventType) => {
+    const bookingUrl = `${window.location.origin}/book/${event.id}`;
+    const embedUrl = `${window.location.origin}/embed/${event.id}`;
+    
+    setShareData({
+      eventId: event.id,
+      eventName: event.name,
+      bookingUrl,
+      embedUrl
+    });
+    setShareModalOpen(true);
+  };
+
+  // Función para generar el código del iframe
+  const generateIframeCode = () => {
+    if (!shareData) return "";
+    
+    return `<iframe
+  src="${shareData.embedUrl}?theme=${embedTheme}&hideEventTypeDetails=${hideEventDetails}&brandColor=${brandColor.replace('#', '')}"
+  width="100%"
+  height="600"
+  frameborder="0">
+</iframe>`;
+  };
+
+  // Función para generar el código del botón flotante
+  const generateFloatingButtonCode = () => {
+    if (!shareData) return "";
+    
+    return `<!-- Cal floating-popup embed code begins -->
+<script type="text/javascript">
+  (function (C, A, L) { 
+    let p = function (a, ar) { a.q.push(ar); }; 
+    let d = C.document; 
+    C.Cal = C.Cal || function () { 
+      let cal = C.Cal; 
+      let ar = arguments; 
+      if (!cal.loaded) {
+        cal.ns = {}; 
+        cal.q = cal.q || []; 
+        d.head.appendChild(d.createElement("script")).src = A; 
+        cal.loaded = true; 
+      } 
+      if (ar[0] === L) { 
+        const api = function () { p(api, arguments); }; 
+        const namespace = ar[1]; 
+        api.q = api.q || []; 
+        if(typeof namespace === "string"){
+          cal.ns[namespace] = cal.ns[namespace] || api;
+          cal.ns[namespace].q = cal.ns[namespace].q || [];
+          cal.ns[namespace].q.push(...api.q);
+        } else {
+          p(cal, ar);
+        }
+        return;
+      }
+      p(cal, ar); 
+    }; 
+  })(window, "https://app.cal.com/embed/embed.js", "init");
+  
+  Cal("init", {origin:"${window.location.origin}"});
+  
+  Cal("floatingButton", {
+    calLink: "${shareData.bookingUrl}",
+    config: {
+      theme: "${embedTheme}",
+      brandColor: "${brandColor}",
+      hideEventTypeDetails: ${hideEventDetails}
+    },
+    buttonText: "${buttonText}",
+    buttonPosition: "${buttonPosition}",
+    buttonColor: "${buttonColor}",
+    buttonTextColor: "${textColor}"
+  });
+</script>
+<!-- Cal floating-popup embed code ends -->`;
+  };
+
+  // Función para generar el código React
+  const generateReactCode = () => {
+    if (!shareData) return "";
+    
+    return `import Cal, { getCalApi } from "@calcom/embed-react";
+import { useEffect } from "react";
+
+export default function MyApp() {
+  useEffect(()=>{
+    (async function () {
+      const cal = await getCalApi();
+      cal("ui", {"theme":"${embedTheme}","styles":{"branding":{"brandColor":"${brandColor}"}},"hideEventTypeDetails":${hideEventDetails}});
+    })();
+  }, [])
+  
+  return (
+    <Cal
+      calLink="${shareData.eventName.toLowerCase().replace(/\s+/g, '-')}"
+      style={{width:"100%",height:"100%",overflow:"scroll"}}
+      config={{"theme":"${embedTheme}"}}
+    />
+  );
+}`;
+  };
+
+  // Función para copiar al portapapeles
+  const copyToClipboard = async (text: string, successMessage: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(successMessage);
+    } catch (error) {
+      console.error('Error al copiar:', error);
+      toast.error("Error al copiar al portapapeles");
+    }
+  };
 
   // Función para cargar preguntas del evento usando el servicio real
   const loadEventQuestions = async (eventId: number) => {
@@ -189,7 +324,6 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
 
       console.log('🔄 Cargando eventos desde el EventsService...');
 
-
       const eventsList = await eventsService.getAllEventTypes();
 
       console.log('📡 Eventos recibidos del EventsService:', eventsList);
@@ -265,6 +399,7 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
     }
   };
 
+<<<<<<< HEAD
   // Función para copiar enlace
   const handleCopyLink = async (eventId: number, locationType: string, meetLink?: string) => {
   try {
@@ -290,6 +425,8 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
 };
 
 
+=======
+>>>>>>> 127bb7298e01b7fa9aa2d1fe9597acc430237917
   // Función para duplicar evento usando el servicio real
   const handleDuplicateEvent = async (eventId: number, eventName: string) => {
     try {
@@ -459,10 +596,17 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
                       <lucideReact.Edit className="mr-2 h-4 w-4" />
                       Editar evento
                     </DropdownMenuItem>
+<<<<<<< HEAD
                  <DropdownMenuItem onClick={() => handleCopyLink(event.id, event.location_type, lastGeneratedLink)}>
   <lucideReact.Copy className="mr-2 h-4 w-4" />
   Copiar enlace
 </DropdownMenuItem>
+=======
+                    <DropdownMenuItem onClick={() => handleShareEvent(event)}>
+                      <lucideReact.Share2 className="mr-2 h-4 w-4" />
+                      Compartir enlace
+                    </DropdownMenuItem>
+>>>>>>> 127bb7298e01b7fa9aa2d1fe9597acc430237917
                     <DropdownMenuItem onClick={() => handleDuplicateEvent(event.id, event.name)}>
                       <lucideReact.Copy className="mr-2 h-4 w-4" />
                       Duplicar evento
@@ -518,6 +662,7 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
                     <lucideReact.Eye className="h-3.5 w-3.5" />
                     Ver detalles
                   </Button>
+<<<<<<< HEAD
                <Button
   variant="outline"
   size="sm"
@@ -531,12 +676,375 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
               </div>
             </CardContent>
           </Card>
+=======
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleShareEvent(event)}
+                    className="flex items-center gap-2"
+                  >
+                    <lucideReact.Share2 className="h-3.5 w-3.5" />
+                    Compartir
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+>>>>>>> 127bb7298e01b7fa9aa2d1fe9597acc430237917
           </FadeIn>
         ))}
-    </div >
+      </div>
 
-      {/* Modal de edición */ }
-      <Dialog Dialog open = { isEditModalOpen } onOpenChange = { setIsEditModalOpen } >
+      {/* Modal de compartir enlace */}
+      <Dialog open={shareModalOpen} onOpenChange={setShareModalOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <lucideReact.Share2 className="h-5 w-5" />
+              Compartir: {shareData?.eventName}
+            </DialogTitle>
+            <DialogDescription>
+              Elige una de las siguientes maneras de añadir Cal.com a tu sitio.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="link" className="flex items-center gap-2">
+                <lucideReact.Link className="h-4 w-4" />
+                Enlace directo
+              </TabsTrigger>
+              <TabsTrigger value="iframe" className="flex items-center gap-2">
+                <lucideReact.Code className="h-4 w-4" />
+                HTML (iframe)
+              </TabsTrigger>
+              <TabsTrigger value="floating" className="flex items-center gap-2">
+                <lucideReact.MousePointer className="h-4 w-4" />
+                Botón flotante
+              </TabsTrigger>
+              <TabsTrigger value="react" className="flex items-center gap-2">
+                <lucideReact.Zap className="h-4 w-4" />
+                React (Atom)
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="link" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <lucideReact.Globe className="h-5 w-5" />
+                    Enlace directo
+                  </CardTitle>
+                  <CardDescription>
+                    Comparte este enlace directamente con tus clientes para que puedan agendar citas.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+                    <Input
+                      value={shareData?.bookingUrl || ""}
+                      readOnly
+                      className="font-mono text-sm"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => copyToClipboard(shareData?.bookingUrl || "", "Enlace copiado al portapapeles")}
+                    >
+                      <lucideReact.Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => copyToClipboard(shareData?.bookingUrl || "", "Enlace copiado al portapapeles")}
+                      className="flex items-center gap-2"
+                    >
+                      <lucideReact.Copy className="h-4 w-4" />
+                      Copiar enlace
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => window.open(shareData?.bookingUrl, '_blank')}
+                      className="flex items-center gap-2"
+                    >
+                      <lucideReact.ExternalLink className="h-4 w-4" />
+                      Abrir enlace
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="iframe" className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Configuración del embed</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Tema</Label>
+                        <Select value={embedTheme} onValueChange={setEmbedTheme}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="auto">Auto</SelectItem>
+                            <SelectItem value="light">Claro</SelectItem>
+                            <SelectItem value="dark">Oscuro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <Label>Ocultar detalles del evento</Label>
+                        <Switch
+                          checked={hideEventDetails}
+                          onCheckedChange={setHideEventDetails}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Color de marca</Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="color"
+                            value={brandColor}
+                            onChange={(e) => setBrandColor(e.target.value)}
+                            className="w-12 h-10 p-1 border rounded"
+                          />
+                          <Input
+                            value={brandColor}
+                            onChange={(e) => setBrandColor(e.target.value)}
+                            placeholder="#292929"
+                            className="font-mono"
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                      <CardTitle className="text-sm">Código HTML</CardTitle>
+                      <Button
+                        size="sm"
+                        onClick={() => copyToClipboard(generateIframeCode(), "Código HTML copiado")}
+                      >
+                        <lucideReact.Copy className="h-4 w-4" />
+                      </Button>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="bg-muted p-3 rounded-lg">
+                        <pre className="text-xs font-mono whitespace-pre-wrap overflow-x-auto">
+                          {generateIframeCode()}
+                        </pre>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Vista previa</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="border rounded-lg p-4 bg-muted/50 min-h-[200px] flex items-center justify-center">
+                        <div className="text-center space-y-2">
+                          <lucideReact.Calendar className="h-12 w-12 mx-auto text-muted-foreground" />
+                          <p className="text-sm text-muted-foreground">Vista previa del calendario</p>
+                          <p className="text-xs text-muted-foreground">{shareData?.eventName}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="floating" className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Configuración del botón</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Texto del botón</Label>
+                        <Input
+                          value={buttonText}
+                          onChange={(e) => setButtonText(e.target.value)}
+                          placeholder="Reservar mi Cal"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Posición del botón</Label>
+                        <Select value={buttonPosition} onValueChange={setButtonPosition}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="bottom-right">Abajo derecha</SelectItem>
+                            <SelectItem value="bottom-left">Abajo izquierda</SelectItem>
+                            <SelectItem value="top-right">Arriba derecha</SelectItem>
+                            <SelectItem value="top-left">Arriba izquierda</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Color del botón</Label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="color"
+                              value={buttonColor}
+                              onChange={(e) => setButtonColor(e.target.value)}
+                              className="w-12 h-10 p-1 border rounded"
+                            />
+                            <Input
+                              value={buttonColor}
+                              onChange={(e) => setButtonColor(e.target.value)}
+                              className="font-mono text-xs"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Color del texto</Label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="color"
+                              value={textColor}
+                              onChange={(e) => setTextColor(e.target.value)}
+                              className="w-12 h-10 p-1 border rounded"
+                            />
+                            <Input
+                              value={textColor}
+                              onChange={(e) => setTextColor(e.target.value)}
+                              className="font-mono text-xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Tema del embed</Label>
+                        <Select value={embedTheme} onValueChange={setEmbedTheme}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="auto">Auto</SelectItem>
+                            <SelectItem value="light">Claro</SelectItem>
+                            <SelectItem value="dark">Oscuro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <Label>Ocultar detalles del evento</Label>
+                        <Switch
+                          checked={hideEventDetails}
+                          onCheckedChange={setHideEventDetails}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="space-y-4">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                      <CardTitle className="text-sm">Código JavaScript</CardTitle>
+                      <Button
+                        size="sm"
+                        onClick={() => copyToClipboard(generateFloatingButtonCode(), "Código JavaScript copiado")}
+                      >
+                        <lucideReact.Copy className="h-4 w-4" />
+                      </Button>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="bg-muted p-3 rounded-lg max-h-[400px] overflow-y-auto">
+                        <pre className="text-xs font-mono whitespace-pre-wrap">
+                          {generateFloatingButtonCode()}
+                        </pre>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Vista previa</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="border rounded-lg p-4 bg-muted/50 min-h-[150px] relative">
+                        <div className="text-center">
+                          <p className="text-sm text-muted-foreground mb-4">Tu sitio web</p>
+                        </div>
+                        <div 
+                          className={`absolute ${buttonPosition.includes('bottom') ? 'bottom-4' : 'top-4'} ${buttonPosition.includes('right') ? 'right-4' : 'left-4'}`}
+                        >
+                          <Button
+                            style={{ backgroundColor: buttonColor, color: textColor }}
+                            size="sm"
+                            className="shadow-lg"
+                          >
+                            {buttonText}
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="react" className="space-y-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>Componente React</CardTitle>
+                  <Button
+                    size="sm"
+                    onClick={() => copyToClipboard(generateReactCode(), "Código React copiado")}
+                  >
+                    <lucideReact.Copy className="h-4 w-4" />
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="bg-muted p-4 rounded-lg">
+                      <pre className="text-sm font-mono whitespace-pre-wrap overflow-x-auto">
+                        {generateReactCode()}
+                      </pre>
+                    </div>
+                    
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <h4 className="font-medium text-blue-900 mb-2">Instalación requerida:</h4>
+                      <code className="text-sm bg-blue-100 px-2 py-1 rounded text-blue-800">
+                        npm install @calcom/embed-react
+                      </code>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShareModalOpen(false)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de edición */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -858,7 +1366,7 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog >
+      </Dialog>
     </>
   );
 }
