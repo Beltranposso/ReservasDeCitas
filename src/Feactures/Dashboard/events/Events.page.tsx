@@ -1,23 +1,18 @@
 import { Button } from "../../../components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../../components/ui/dialog"
-import { Input } from "../../../components/ui/input"
-import { Label } from "../../../components/ui/label"
-import { Textarea } from "../../../components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select"
-import { Switch } from "../../../components/ui/switch"
-import { PlusCircle } from "lucide-react"
-import CreateEventForm from "./components/create-event-form"
-import { FadeIn } from "../../../components/animations/fade-in"
-import { useState, useEffect } from "react";
 import { Badge } from "../../../components/ui/badge";
 import * as lucideReact from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../../components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { useState, useEffect } from "react";
+import CreateEventForm from "./components/create-event-form"
+import { FadeIn } from "../../../components/animations/fade-in"
 import eventsService from './EventsService';
+import ShareModal from "./components/ShareModal";
+import EditEventModal from "./components/EditEventModal";
+import CopyAnimatedToast from "./components/CopyAnimatedToast"; // <-- Importa el componente animado
 
-// Interfaz para los eventos
 interface EventType {
   id: number;
   name: string;
@@ -35,7 +30,6 @@ interface EventType {
   updated_at?: string;
 }
 
-// Interfaz para las preguntas
 interface EventQuestion {
   id?: number;
   event_type_id?: number;
@@ -44,7 +38,6 @@ interface EventQuestion {
   question_order: number;
 }
 
-// Interfaz para los datos del modal de compartir
 interface ShareModalData {
   eventId: number;
   eventName: string;
@@ -52,7 +45,6 @@ interface ShareModalData {
   embedUrl: string;
 }
 
-// Componente de lista de eventos
 function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
   const [events, setEvents] = useState<EventType[]>([]);
   const [loading, setLoading] = useState(false);
@@ -60,13 +52,14 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
   const [editingEvent, setEditingEvent] = useState<EventType | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  
-  // Estados para el modal de edición
+
   const [eventQuestions, setEventQuestions] = useState<EventQuestion[]>([]);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [lastGeneratedLink, setLastGeneratedLink] = useState<string | null>(null);
 
-  // Estados para el modal de compartir
+  // Animación de copia
+  const [showCopyToast, setShowCopyToast] = useState(false);
+
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareData, setShareData] = useState<ShareModalData | null>(null);
   const [selectedTab, setSelectedTab] = useState("link");
@@ -78,7 +71,6 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
   const [hideEventDetails, setHideEventDetails] = useState(false);
   const [brandColor, setBrandColor] = useState("#292929");
 
-  // Estado para el formulario de edición
   const [editFormData, setEditFormData] = useState({
     name: "",
     description: "",
@@ -92,11 +84,36 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
     notifications_enabled: true,
   });
 
+  // Función para copiar enlace con animación
+  const handleCopyLink = async (eventId: number, locationType: string, meetLink?: string) => {
+    try {
+      let linkToCopy: string | null = null;
+      let successMessage: string;
+
+      if (locationType === 'google_meet' && meetLink) {
+        linkToCopy = meetLink;
+        successMessage = "Enlace de Google Meet copiado al portapapeles";
+      } else {
+        linkToCopy = `${window.location.origin}/book/${eventId}`;
+        successMessage = "Enlace de agendación copiado al portapapeles";
+      }
+
+      if (linkToCopy) {
+        await navigator.clipboard.writeText(linkToCopy);
+        setShowCopyToast(true);
+        setTimeout(() => setShowCopyToast(false), 1400);
+        toast.success(successMessage);
+      }
+    } catch (error) {
+      toast.error("Error al copiar enlace");
+    }
+  };
+
   // Función para abrir el modal de compartir
   const handleShareEvent = (event: EventType) => {
     const bookingUrl = `${window.location.origin}/book/${event.id}`;
     const embedUrl = `${window.location.origin}/embed/${event.id}`;
-    
+
     setShareData({
       eventId: event.id,
       eventName: event.name,
@@ -109,7 +126,7 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
   // Función para generar el código del iframe
   const generateIframeCode = () => {
     if (!shareData) return "";
-    
+
     return `<iframe
   src="${shareData.embedUrl}?theme=${embedTheme}&hideEventTypeDetails=${hideEventDetails}&brandColor=${brandColor.replace('#', '')}"
   width="100%"
@@ -121,7 +138,7 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
   // Función para generar el código del botón flotante
   const generateFloatingButtonCode = () => {
     if (!shareData) return "";
-    
+
     return `<!-- Cal floating-popup embed code begins -->
 <script type="text/javascript">
   (function (C, A, L) { 
@@ -174,7 +191,7 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
   // Función para generar el código React
   const generateReactCode = () => {
     if (!shareData) return "";
-    
+
     return `import Cal, { getCalApi } from "@calcom/embed-react";
 import { useEffect } from "react";
 
@@ -196,10 +213,12 @@ export default function MyApp() {
 }`;
   };
 
-  // Función para copiar al portapapeles
+  // Función para copiar al portapapeles desde el modal de compartir con animación
   const copyToClipboard = async (text: string, successMessage: string) => {
     try {
       await navigator.clipboard.writeText(text);
+      setShowCopyToast(true);
+      setTimeout(() => setShowCopyToast(false), 1400);
       toast.success(successMessage);
     } catch (error) {
       console.error('Error al copiar:', error);
@@ -211,15 +230,9 @@ export default function MyApp() {
   const loadEventQuestions = async (eventId: number) => {
     try {
       setLoadingQuestions(true);
-      console.log('🔄 Cargando preguntas para evento:', eventId);
-
       const questions = await eventsService.getEventQuestions(eventId);
-      console.log('📋 Preguntas cargadas desde EventsService:', questions);
-
       setEventQuestions(questions);
     } catch (error: any) {
-      console.error('❌ Error cargando preguntas desde EventsService:', error);
-      console.warn('No se pudieron cargar las preguntas del evento');
       setEventQuestions([]);
     } finally {
       setLoadingQuestions(false);
@@ -251,7 +264,6 @@ export default function MyApp() {
         await eventsService.deleteEventQuestion(editingEvent.id, question.id);
         toast.success('Pregunta eliminada correctamente');
       } catch (error: any) {
-        console.error('❌ Error eliminando pregunta:', error);
         toast.error(`Error al eliminar pregunta: ${error.message}`);
         return;
       }
@@ -282,22 +294,15 @@ export default function MyApp() {
     if (!editingEvent) return;
 
     try {
-      console.log('💾 Guardando preguntas:', eventQuestions);
-
       const validQuestions = eventQuestions.filter(q => q.question.trim() !== '');
-
       await eventsService.saveEventQuestions(editingEvent.id, validQuestions);
-      console.log('✅ Preguntas guardadas exitosamente');
-
     } catch (error: any) {
-      console.error('❌ Error guardando preguntas:', error);
-      throw error; // Re-lanzar para que handleSaveEdit lo maneje
+      throw error;
     }
   };
 
   // Función para abrir modal de edición usando el servicio real
   const handleEditEvent = async (event: EventType) => {
-    console.log('✏️ Abriendo modal de edición para evento:', event);
     setEditingEvent(event);
     setEditFormData({
       name: event.name,
@@ -311,8 +316,6 @@ export default function MyApp() {
       daily_limit: event.daily_limit || 0,
       notifications_enabled: event.notifications_enabled !== false,
     });
-
-    // Cargar preguntas del evento usando el servicio real
     await loadEventQuestions(event.id);
     setIsEditModalOpen(true);
   };
@@ -322,47 +325,28 @@ export default function MyApp() {
       setLoading(true);
       setError(null);
 
-      console.log('🔄 Cargando eventos desde el EventsService...');
-
       const eventsList = await eventsService.getAllEventTypes();
-
-      console.log('📡 Eventos recibidos del EventsService:', eventsList);
-      console.log('📊 Cantidad de eventos:', eventsList.length);
-
       setEvents(eventsList);
-
       if (eventsList.length > 0) {
         toast.success(`Se encontraron ${eventsList.length} eventos`);
-      } else {
-        console.log('ℹ️ No se encontraron eventos para mostrar');
       }
-
     } catch (err: any) {
-      console.error('❌ Error cargando eventos desde EventsService:', err);
       setError(err.message);
       toast.error(`Error al cargar eventos: ${err.message}`);
-
-      // En caso de error, mostrar array vacío para no romper la UI
       setEvents([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Cargar eventos al montar y cuando cambie refreshTrigger
   useEffect(() => {
-    console.log('🎬 Efecto de carga de eventos ejecutado (trigger:', refreshTrigger, ')');
     loadEvents();
   }, [refreshTrigger]);
 
   // Función para eliminar evento usando el servicio real
   const handleDeleteEvent = async (eventId: number) => {
     try {
-      console.log(`🔍 Verificando dependencias para evento ${eventId}...`);
-
-      // Usar el método del EventsService para verificar dependencias
       const deps = await eventsService.checkEventDependencies(eventId);
-      console.log('📊 Dependencias encontradas:', deps);
 
       let confirmMessage = "¿Estás seguro de que deseas eliminar este evento?";
 
@@ -374,23 +358,14 @@ export default function MyApp() {
         confirmMessage += "\n\n⚠️ Esta acción no se puede deshacer.";
       }
 
-      if (!confirm(confirmMessage)) return;
+      if (!window.confirm(confirmMessage)) return;
 
-      console.log(`🗑️ Eliminando evento ${eventId} usando EventsService...`);
-
-      // Usar el método del EventsService para eliminar
-      const result = await eventsService.deleteEventType(eventId);
-      console.log('✅ Resultado de eliminación:', result);
+      await eventsService.deleteEventType(eventId);
 
       toast.success("Evento eliminado correctamente");
-
-      // Recargar la lista de eventos
       await loadEvents();
 
     } catch (error: any) {
-      console.error('❌ Error eliminando evento desde EventsService:', error);
-
-      // Manejo específico de errores
       if (error.message.includes('datos relacionados') || error.message.includes('constraint')) {
         toast.error("No se puede eliminar: el evento tiene reservas o datos relacionados");
       } else {
@@ -399,48 +374,13 @@ export default function MyApp() {
     }
   };
 
-<<<<<<< HEAD
-  // Función para copiar enlace
-  const handleCopyLink = async (eventId: number, locationType: string, meetLink?: string) => {
-  try {
-    let linkToCopy: string | null = null;
-    let successMessage: string;
-
-    if (locationType === 'google_meet' && meetLink) {
-      linkToCopy = meetLink;
-      successMessage = "Enlace de Google Meet copiado al portapapeles";
-    } else {
-      linkToCopy = `${window.location.origin}/book/${eventId}`;
-      successMessage = "Enlace de agendación copiado al portapapeles";
-    }
-
-    if (linkToCopy) {
-      await navigator.clipboard.writeText(linkToCopy);
-      toast.success(successMessage);
-    }
-  } catch (error) {
-    console.error('Error al copiar enlace:', error);
-    toast.error("Error al copiar enlace");
-  }
-};
-
-
-=======
->>>>>>> 127bb7298e01b7fa9aa2d1fe9597acc430237917
   // Función para duplicar evento usando el servicio real
   const handleDuplicateEvent = async (eventId: number, eventName: string) => {
     try {
-      console.log(`📋 Duplicando evento ${eventId} usando EventsService...`);
-
       const duplicatedEvent = await eventsService.duplicateEvent(eventId, `${eventName} (Copia)`);
-      console.log('✅ Evento duplicado exitosamente:', duplicatedEvent);
-
       toast.success(`Evento duplicado: ${duplicatedEvent.name}`);
-
-      // Recargar la lista para mostrar el evento duplicado
       await loadEvents();
     } catch (error: any) {
-      console.error('❌ Error duplicando evento desde EventsService:', error);
       toast.error(`Error al duplicar evento: ${error.message}`);
     }
   };
@@ -460,35 +400,19 @@ export default function MyApp() {
     setEditFormData(prev => ({ ...prev, [name]: checked }));
   };
 
-  // Función para guardar cambios usando el servicio real
   const handleSaveEdit = async () => {
     if (!editingEvent) return;
 
     try {
       setIsUpdating(true);
-      console.log('💾 Guardando cambios del evento usando EventsService:', editingEvent.id, editFormData);
-
-      // Usar el método del EventsService para actualizar
-      const updatedEvent = await eventsService.updateEventType(editingEvent.id, editFormData);
-      console.log('✅ Evento actualizado exitosamente:', updatedEvent);
-
-      // Guardar también las preguntas
+      await eventsService.updateEventType(editingEvent.id, editFormData);
       await handleSaveQuestions();
-
       toast.success('Evento actualizado correctamente');
-
-      // Cerrar modal y limpiar estado
       setIsEditModalOpen(false);
       setEditingEvent(null);
-      setEventQuestions([]); // Limpiar preguntas al cerrar
-
-      // Recargar la lista para mostrar los cambios
+      setEventQuestions([]);
       await loadEvents();
-
     } catch (error: any) {
-      console.error('❌ Error actualizando evento desde EventsService:', error);
-
-      // Manejo específico de errores
       if (error.message.includes('custom_url')) {
         toast.error('La URL personalizada ya está en uso. Prueba con otra.');
       } else if (error.message.includes('400')) {
@@ -554,6 +478,8 @@ export default function MyApp() {
 
   return (
     <>
+      <CopyAnimatedToast show={showCopyToast} />
+
       <div className="space-y-4">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -567,7 +493,6 @@ export default function MyApp() {
             Actualizar
           </Button>
         </div>
-
         {events.map((event, index) => (
           <FadeIn key={`event-${event.id}-${refreshTrigger}`} delay={index * 0.1}>
             <Card className="hover:shadow-md transition-all duration-200 border-l-4 border-l-pink-400">
@@ -596,17 +521,14 @@ export default function MyApp() {
                       <lucideReact.Edit className="mr-2 h-4 w-4" />
                       Editar evento
                     </DropdownMenuItem>
-<<<<<<< HEAD
-                 <DropdownMenuItem onClick={() => handleCopyLink(event.id, event.location_type, lastGeneratedLink)}>
-  <lucideReact.Copy className="mr-2 h-4 w-4" />
-  Copiar enlace
-</DropdownMenuItem>
-=======
+                    <DropdownMenuItem onClick={() => handleCopyLink(event.id, event.location_type, lastGeneratedLink || undefined)}>
+                      <lucideReact.Copy className="mr-2 h-4 w-4" />
+                      Copiar enlace
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleShareEvent(event)}>
                       <lucideReact.Share2 className="mr-2 h-4 w-4" />
                       Compartir enlace
                     </DropdownMenuItem>
->>>>>>> 127bb7298e01b7fa9aa2d1fe9597acc430237917
                     <DropdownMenuItem onClick={() => handleDuplicateEvent(event.id, event.name)}>
                       <lucideReact.Copy className="mr-2 h-4 w-4" />
                       Duplicar evento
@@ -662,21 +584,15 @@ export default function MyApp() {
                     <lucideReact.Eye className="h-3.5 w-3.5" />
                     Ver detalles
                   </Button>
-<<<<<<< HEAD
-               <Button
-  variant="outline"
-  size="sm"
-  onClick={() => handleCopyLink(event.id, event.location_type, lastGeneratedLink)}
-  className="flex items-center gap-2"
->
-  <lucideReact.Link className="h-3.5 w-3.5" />
-  Copiar enlace
-</Button>
-
-              </div>
-            </CardContent>
-          </Card>
-=======
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleCopyLink(event.id, event.location_type, lastGeneratedLink || undefined)}
+                    className="flex items-center gap-2"
+                  >
+                    <lucideReact.Link className="h-3.5 w-3.5" />
+                    Copiar enlace
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -689,684 +605,61 @@ export default function MyApp() {
                 </div>
               </CardContent>
             </Card>
->>>>>>> 127bb7298e01b7fa9aa2d1fe9597acc430237917
           </FadeIn>
         ))}
       </div>
 
-      {/* Modal de compartir enlace */}
-      <Dialog open={shareModalOpen} onOpenChange={setShareModalOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <lucideReact.Share2 className="h-5 w-5" />
-              Compartir: {shareData?.eventName}
-            </DialogTitle>
-            <DialogDescription>
-              Elige una de las siguientes maneras de añadir Cal.com a tu sitio.
-            </DialogDescription>
-          </DialogHeader>
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={shareModalOpen}
+        onOpenChange={setShareModalOpen}
+        shareData={shareData}
+        selectedTab={selectedTab}
+        onTabChange={setSelectedTab}
+        embedConfig={{
+          theme: embedTheme,
+          setTheme: setEmbedTheme,
+          hideDetails: hideEventDetails,
+          setHideDetails: setHideEventDetails,
+          brandColor,
+          setBrandColor,
+          buttonText,
+          setButtonText,
+          buttonPosition,
+          setButtonPosition,
+          buttonColor,
+          setButtonColor,
+          textColor,
+          setTextColor
+        }}
+        onCopyToClipboard={copyToClipboard}
+        generateCodes={{
+          iframe: generateIframeCode,
+          floating: generateFloatingButtonCode,
+          react: generateReactCode
+        }}
+      />
 
-          <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="link" className="flex items-center gap-2">
-                <lucideReact.Link className="h-4 w-4" />
-                Enlace directo
-              </TabsTrigger>
-              <TabsTrigger value="iframe" className="flex items-center gap-2">
-                <lucideReact.Code className="h-4 w-4" />
-                HTML (iframe)
-              </TabsTrigger>
-              <TabsTrigger value="floating" className="flex items-center gap-2">
-                <lucideReact.MousePointer className="h-4 w-4" />
-                Botón flotante
-              </TabsTrigger>
-              <TabsTrigger value="react" className="flex items-center gap-2">
-                <lucideReact.Zap className="h-4 w-4" />
-                React (Atom)
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="link" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <lucideReact.Globe className="h-5 w-5" />
-                    Enlace directo
-                  </CardTitle>
-                  <CardDescription>
-                    Comparte este enlace directamente con tus clientes para que puedan agendar citas.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-                    <Input
-                      value={shareData?.bookingUrl || ""}
-                      readOnly
-                      className="font-mono text-sm"
-                    />
-                    <Button
-                      size="sm"
-                      onClick={() => copyToClipboard(shareData?.bookingUrl || "", "Enlace copiado al portapapeles")}
-                    >
-                      <lucideReact.Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <Button
-                      variant="outline"
-                      onClick={() => copyToClipboard(shareData?.bookingUrl || "", "Enlace copiado al portapapeles")}
-                      className="flex items-center gap-2"
-                    >
-                      <lucideReact.Copy className="h-4 w-4" />
-                      Copiar enlace
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => window.open(shareData?.bookingUrl, '_blank')}
-                      className="flex items-center gap-2"
-                    >
-                      <lucideReact.ExternalLink className="h-4 w-4" />
-                      Abrir enlace
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="iframe" className="space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm">Configuración del embed</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-2">
-                        <Label>Tema</Label>
-                        <Select value={embedTheme} onValueChange={setEmbedTheme}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="auto">Auto</SelectItem>
-                            <SelectItem value="light">Claro</SelectItem>
-                            <SelectItem value="dark">Oscuro</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <Label>Ocultar detalles del evento</Label>
-                        <Switch
-                          checked={hideEventDetails}
-                          onCheckedChange={setHideEventDetails}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Color de marca</Label>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type="color"
-                            value={brandColor}
-                            onChange={(e) => setBrandColor(e.target.value)}
-                            className="w-12 h-10 p-1 border rounded"
-                          />
-                          <Input
-                            value={brandColor}
-                            onChange={(e) => setBrandColor(e.target.value)}
-                            placeholder="#292929"
-                            className="font-mono"
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                <div className="space-y-4">
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between">
-                      <CardTitle className="text-sm">Código HTML</CardTitle>
-                      <Button
-                        size="sm"
-                        onClick={() => copyToClipboard(generateIframeCode(), "Código HTML copiado")}
-                      >
-                        <lucideReact.Copy className="h-4 w-4" />
-                      </Button>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="bg-muted p-3 rounded-lg">
-                        <pre className="text-xs font-mono whitespace-pre-wrap overflow-x-auto">
-                          {generateIframeCode()}
-                        </pre>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm">Vista previa</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="border rounded-lg p-4 bg-muted/50 min-h-[200px] flex items-center justify-center">
-                        <div className="text-center space-y-2">
-                          <lucideReact.Calendar className="h-12 w-12 mx-auto text-muted-foreground" />
-                          <p className="text-sm text-muted-foreground">Vista previa del calendario</p>
-                          <p className="text-xs text-muted-foreground">{shareData?.eventName}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="floating" className="space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm">Configuración del botón</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-2">
-                        <Label>Texto del botón</Label>
-                        <Input
-                          value={buttonText}
-                          onChange={(e) => setButtonText(e.target.value)}
-                          placeholder="Reservar mi Cal"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Posición del botón</Label>
-                        <Select value={buttonPosition} onValueChange={setButtonPosition}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="bottom-right">Abajo derecha</SelectItem>
-                            <SelectItem value="bottom-left">Abajo izquierda</SelectItem>
-                            <SelectItem value="top-right">Arriba derecha</SelectItem>
-                            <SelectItem value="top-left">Arriba izquierda</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Color del botón</Label>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="color"
-                              value={buttonColor}
-                              onChange={(e) => setButtonColor(e.target.value)}
-                              className="w-12 h-10 p-1 border rounded"
-                            />
-                            <Input
-                              value={buttonColor}
-                              onChange={(e) => setButtonColor(e.target.value)}
-                              className="font-mono text-xs"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Color del texto</Label>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="color"
-                              value={textColor}
-                              onChange={(e) => setTextColor(e.target.value)}
-                              className="w-12 h-10 p-1 border rounded"
-                            />
-                            <Input
-                              value={textColor}
-                              onChange={(e) => setTextColor(e.target.value)}
-                              className="font-mono text-xs"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Tema del embed</Label>
-                        <Select value={embedTheme} onValueChange={setEmbedTheme}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="auto">Auto</SelectItem>
-                            <SelectItem value="light">Claro</SelectItem>
-                            <SelectItem value="dark">Oscuro</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <Label>Ocultar detalles del evento</Label>
-                        <Switch
-                          checked={hideEventDetails}
-                          onCheckedChange={setHideEventDetails}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                <div className="space-y-4">
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between">
-                      <CardTitle className="text-sm">Código JavaScript</CardTitle>
-                      <Button
-                        size="sm"
-                        onClick={() => copyToClipboard(generateFloatingButtonCode(), "Código JavaScript copiado")}
-                      >
-                        <lucideReact.Copy className="h-4 w-4" />
-                      </Button>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="bg-muted p-3 rounded-lg max-h-[400px] overflow-y-auto">
-                        <pre className="text-xs font-mono whitespace-pre-wrap">
-                          {generateFloatingButtonCode()}
-                        </pre>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-sm">Vista previa</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="border rounded-lg p-4 bg-muted/50 min-h-[150px] relative">
-                        <div className="text-center">
-                          <p className="text-sm text-muted-foreground mb-4">Tu sitio web</p>
-                        </div>
-                        <div 
-                          className={`absolute ${buttonPosition.includes('bottom') ? 'bottom-4' : 'top-4'} ${buttonPosition.includes('right') ? 'right-4' : 'left-4'}`}
-                        >
-                          <Button
-                            style={{ backgroundColor: buttonColor, color: textColor }}
-                            size="sm"
-                            className="shadow-lg"
-                          >
-                            {buttonText}
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="react" className="space-y-4">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle>Componente React</CardTitle>
-                  <Button
-                    size="sm"
-                    onClick={() => copyToClipboard(generateReactCode(), "Código React copiado")}
-                  >
-                    <lucideReact.Copy className="h-4 w-4" />
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="bg-muted p-4 rounded-lg">
-                      <pre className="text-sm font-mono whitespace-pre-wrap overflow-x-auto">
-                        {generateReactCode()}
-                      </pre>
-                    </div>
-                    
-                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <h4 className="font-medium text-blue-900 mb-2">Instalación requerida:</h4>
-                      <code className="text-sm bg-blue-100 px-2 py-1 rounded text-blue-800">
-                        npm install @calcom/embed-react
-                      </code>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShareModalOpen(false)}>
-              Cerrar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal de edición */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <lucideReact.Edit className="h-5 w-5" />
-              Editar Evento: {editingEvent?.name}
-            </DialogTitle>
-            <DialogDescription>
-              Modifica los detalles de tu evento. Los cambios se guardarán al hacer clic en "Guardar cambios".
-            </DialogDescription>
-          </DialogHeader>
-
-          <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="basic">Información Básica</TabsTrigger>
-              <TabsTrigger value="settings">Configuración</TabsTrigger>
-              <TabsTrigger value="questions" className="flex items-center gap-2">
-                <lucideReact.HelpCircle className="h-4 w-4" />
-                Preguntas
-                {eventQuestions.length > 0 && (
-                  <Badge variant="secondary" className="ml-1">
-                    {eventQuestions.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="basic" className="space-y-4">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-name">Nombre del evento *</Label>
-                  <Input
-                    id="edit-name"
-                    name="name"
-                    value={editFormData.name}
-                    onChange={handleEditInputChange}
-                    placeholder="Ej: Consulta de 30 minutos"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="edit-description">Descripción (opcional)</Label>
-                  <Textarea
-                    id="edit-description"
-                    name="description"
-                    value={editFormData.description}
-                    onChange={handleEditInputChange}
-                    placeholder="Describe brevemente de qué trata este tipo de evento"
-                    rows={3}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="edit-custom_url">URL personalizada *</Label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">tudominio.com/</span>
-                    <Input
-                      id="edit-custom_url"
-                      name="custom_url"
-                      value={editFormData.custom_url}
-                      onChange={handleEditInputChange}
-                      placeholder="mi-evento"
-                    />
-                  </div>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="settings" className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <lucideReact.Clock className="h-4 w-4" />
-                    Duración *
-                  </Label>
-                  <Select
-                    value={editFormData.duration_minutes.toString()}
-                    onValueChange={(value) => handleEditSelectChange('duration_minutes', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="15">15 minutos</SelectItem>
-                      <SelectItem value="30">30 minutos</SelectItem>
-                      <SelectItem value="45">45 minutos</SelectItem>
-                      <SelectItem value="60">1 hora</SelectItem>
-                      <SelectItem value="90">1.5 horas</SelectItem>
-                      <SelectItem value="120">2 horas</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <lucideReact.Settings className="h-4 w-4" />
-                    Ubicación *
-                  </Label>
-                  <Select
-                    value={editFormData.location_type}
-                    onValueChange={(value) => handleEditSelectChange('location_type', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="google_meet">Google Meet</SelectItem>
-                      <SelectItem value="zoom">Zoom</SelectItem>
-                      <SelectItem value="teams">Microsoft Teams</SelectItem>
-                      <SelectItem value="phone">Llamada telefónica</SelectItem>
-                      <SelectItem value="in_person">Presencial</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="space-y-0.5">
-                    <Label>Requiere confirmación</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Las reservas deberán ser aprobadas manualmente
-                    </p>
-                  </div>
-                  <Switch
-                    checked={editFormData.requires_confirmation}
-                    onCheckedChange={(checked) => handleEditSwitchChange('requires_confirmation', checked)}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="space-y-0.5">
-                    <Label>Notificaciones habilitadas</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Recibir notificaciones por email de nuevas reservas
-                    </p>
-                  </div>
-                  <Switch
-                    checked={editFormData.notifications_enabled}
-                    onCheckedChange={(checked) => handleEditSwitchChange('notifications_enabled', checked)}
-                  />
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="questions" className="space-y-4">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-medium flex items-center gap-2">
-                      <lucideReact.HelpCircle className="h-5 w-5" />
-                      Preguntas Personalizadas
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      Configura preguntas adicionales que se mostrarán durante la reserva
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    onClick={handleAddQuestion}
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    <lucideReact.Plus className="h-4 w-4" />
-                    Agregar Pregunta
-                  </Button>
-                </div>
-
-                {loadingQuestions ? (
-                  <div className="flex items-center justify-center p-8">
-                    <lucideReact.RefreshCw className="h-6 w-6 animate-spin text-pink-400" />
-                    <span className="ml-2">Cargando preguntas...</span>
-                  </div>
-                ) : eventQuestions.length === 0 ? (
-                  <Card className="border-dashed">
-                    <CardContent className="flex flex-col items-center justify-center p-8 text-center">
-                      <lucideReact.MessageCircle className="h-12 w-12 text-muted-foreground mb-4" />
-                      <h3 className="font-medium text-lg mb-2">No hay preguntas configuradas</h3>
-                      <p className="text-muted-foreground mb-4">
-                        Agrega preguntas personalizadas para obtener más información de tus invitados
-                      </p>
-                      <Button
-                        onClick={handleAddQuestion}
-                        variant="outline"
-                        className="flex items-center gap-2"
-                      >
-                        <lucideReact.Plus className="h-4 w-4" />
-                        Agregar Primera Pregunta
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="space-y-3">
-                    {eventQuestions.map((question, index) => (
-                      <Card key={`question-${index}`} className="border-l-4 border-l-blue-400">
-                        <CardContent className="p-4">
-                          <div className="space-y-3">
-                            <div className="flex items-start gap-3">
-                              <div className="flex flex-col gap-1 pt-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 w-6 p-0"
-                                  onClick={() => handleMoveQuestion(index, 'up')}
-                                  disabled={index === 0}
-                                >
-                                  <lucideReact.ChevronUp className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-6 w-6 p-0"
-                                  onClick={() => handleMoveQuestion(index, 'down')}
-                                  disabled={index === eventQuestions.length - 1}
-                                >
-                                  <lucideReact.ChevronDown className="h-3 w-3" />
-                                </Button>
-                              </div>
-
-                              <div className="flex-1 space-y-3">
-                                <div className="flex items-center gap-2">
-                                  <Badge variant="outline" className="text-xs">
-                                    Pregunta {question.question_order}
-                                  </Badge>
-                                  {question.is_required && (
-                                    <Badge variant="destructive" className="text-xs">
-                                      Obligatoria
-                                    </Badge>
-                                  )}
-                                </div>
-
-                                <Textarea
-                                  value={question.question}
-                                  onChange={(e) => handleUpdateQuestion(index, 'question', e.target.value)}
-                                  placeholder="Escribe tu pregunta aquí..."
-                                  rows={2}
-                                  className="resize-none"
-                                />
-
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <Switch
-                                      checked={question.is_required}
-                                      onCheckedChange={(checked) => handleUpdateQuestion(index, 'is_required', checked)}
-                                    />
-                                    <Label className="text-sm">Pregunta obligatoria</Label>
-                                  </div>
-
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleDeleteQuestion(index)}
-                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                  >
-                                    <lucideReact.Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-
-                {eventQuestions.length > 0 && (
-                  <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <lucideReact.Info className="h-4 w-4" />
-                      <span>
-                        {eventQuestions.filter(q => q.is_required).length} de {eventQuestions.length} preguntas son obligatorias
-                      </span>
-                    </div>
-                    <Button
-                      type="button"
-                      onClick={handleAddQuestion}
-                      variant="outline"
-                      size="sm"
-                      className="flex items-center gap-2"
-                    >
-                      <lucideReact.Plus className="h-4 w-4" />
-                      Agregar Otra
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-          </Tabs>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsEditModalOpen(false);
-                setEventQuestions([]); // Limpiar preguntas
-                setEditingEvent(null);
-              }}
-              disabled={isUpdating}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSaveEdit}
-              disabled={isUpdating}
-              className="bg-pink-400 hover:bg-pink-500"
-            >
-              {isUpdating ? (
-                <>
-                  <lucideReact.RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Guardando...
-                </>
-              ) : (
-                <>
-                  <lucideReact.Check className="mr-2 h-4 w-4" />
-                  Guardar cambios
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Edit Modal */}
+      <EditEventModal
+        isOpen={isEditModalOpen}
+        onOpenChange={setIsEditModalOpen}
+        event={editingEvent}
+        formData={editFormData}
+        onInputChange={handleEditInputChange}
+        onSelectChange={handleEditSelectChange}
+        onSwitchChange={handleEditSwitchChange}
+        onSave={handleSaveEdit}
+        isUpdating={isUpdating}
+        questions={{
+          list: eventQuestions,
+          loading: loadingQuestions,
+          onAdd: handleAddQuestion,
+          onUpdate: handleUpdateQuestion,
+          onDelete: handleDeleteQuestion,
+          onMove: handleMoveQuestion
+        }}
+      />
     </>
   );
 }
@@ -1374,25 +667,20 @@ export default function MyApp() {
 export default function EventsPage() {
   const [activeTab, setActiveTab] = useState("types");
   const [refreshKey, setRefreshKey] = useState(0);
-  
 
   const handleCreateEventClick = () => {
     setActiveTab("create");
-  }
+  };
 
-  // Función para actualizar la lista después de crear evento
   const handleEventCreated = (linkGenerated?: string) => {
-    console.log('🎉 Evento creado, actualizando lista...');
-    setRefreshKey(prev => {
-      console.log('🔄 Cambiando refreshKey de', prev, 'a', prev + 1);
-      return prev + 1;
-    });
-  
+    setRefreshKey(prev => prev + 1);
     setActiveTab("types");
-  
     if (linkGenerated) {
-      navigator.clipboard.writeText(linkGenerated);  // Copiar automáticamente
+      navigator.clipboard.writeText(linkGenerated);
       toast.success("Enlace de Google Meet copiado al portapapeles automáticamente");
+      // Si quieres mostrar la animación aquí también, puedes hacer:
+      // setShowCopyToast(true);
+      // setTimeout(() => setShowCopyToast(false), 1400);
     }
   };
 
@@ -1407,7 +695,7 @@ export default function EventsPage() {
           className="gap-2 bg-pink-400 text-white hover:bg-pink-500"
           onClick={handleCreateEventClick}
         >
-          <PlusCircle className="h-4 w-4" />
+          <lucideReact.PlusCircle className="h-4 w-4" />
           Crear Evento
         </Button>
       </FadeIn>
@@ -1435,5 +723,5 @@ export default function EventsPage() {
         </Tabs>
       </FadeIn>
     </div>
-  )
+  );
 }

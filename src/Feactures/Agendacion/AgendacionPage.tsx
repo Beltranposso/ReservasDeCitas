@@ -2,19 +2,12 @@ import { useState, useEffect } from "react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-<<<<<<< HEAD
-import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
-import { toast } from "sonner";
-import { Clock, MapPin, User, Mail, AlertCircle, Check } from "lucide-react";
-import { api, API_ENDPOINTS } from "../../services/apiclient";
-=======
 import { Textarea } from "../../components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { toast } from "sonner";
 import { Clock, MapPin, User, Mail, AlertCircle, Check, Calendar, ChevronLeft, ChevronRight, Users } from "lucide-react";
 import { api, API_ENDPOINTS } from "../../services/apiclient";
 import { gsap } from "gsap";
->>>>>>> 127bb7298e01b7fa9aa2d1fe9597acc430237917
 
 interface EventRegistrationProps {
   eventId: number;
@@ -29,8 +22,6 @@ interface EventData {
   custom_url: string;
 }
 
-<<<<<<< HEAD
-=======
 interface TimeSlot {
   time: string;
   available: boolean;
@@ -43,17 +34,10 @@ const MONTHS = [
 
 const DAYS = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
 
->>>>>>> 127bb7298e01b7fa9aa2d1fe9597acc430237917
 export default function AgendacionPage({ eventId }: EventRegistrationProps) {
   const [eventData, setEventData] = useState<EventData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-<<<<<<< HEAD
-  const [isRegistered, setIsRegistered] = useState(false);
-  const [formData, setFormData] = useState({
-    name: "",
-    email: ""
-=======
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string>('');
@@ -66,42 +50,20 @@ export default function AgendacionPage({ eventId }: EventRegistrationProps) {
     name: "",
     email: "",
     notes: ""
->>>>>>> 127bb7298e01b7fa9aa2d1fe9597acc430237917
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (eventId) loadEventData();
   }, [eventId]);
-<<<<<<< HEAD
-
-  const loadEventData = async () => {
-    try {
-      setIsLoading(true);
-      const response = await api.get(`/api/events/${eventId}`);
-      if (response.data.success) {
-        setEventData(response.data.data);
-      } else {
-        toast.error("Evento no encontrado");
-      }
-    } catch (error: any) {
-      console.error("Error cargando evento:", error);
-      toast.error("Error al cargar el evento");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-=======
 
   useEffect(() => {
-    // Configurar fecha por defecto (mañana)
+    // Set default date (tomorrow)
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     setSelectedDate(tomorrow);
     setTimeSlots(generateTimeSlots(tomorrow));
-    setCurrentStep(2); // Mostrar tanto calendario como horarios
+    setCurrentStep(2); // Show both calendar and time slots
   }, [eventData]);
 
   const loadEventData = async () => {
@@ -125,14 +87,14 @@ export default function AgendacionPage({ eventId }: EventRegistrationProps) {
     const slots: TimeSlot[] = [];
     const startHour = 9;
     const endHour = 17;
-    const interval = 15; // minutos
+    const interval = 15; // minutes
 
     for (let hour = startHour; hour < endHour; hour++) {
       for (let minute = 0; minute < 60; minute += interval) {
         const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
         slots.push({
           time: timeString,
-          available: Math.random() > 0.3 // Simulación de disponibilidad
+          available: Math.random() > 0.3 // Availability simulation
         });
       }
     }
@@ -149,19 +111,19 @@ export default function AgendacionPage({ eventId }: EventRegistrationProps) {
 
     const days = [];
     
-    // Días del mes anterior
+    // Previous month days
     for (let i = firstDayWeek - 1; i >= 0; i--) {
       const prevDate = new Date(year, month - 1, new Date(year, month, 0).getDate() - i);
       days.push({ date: prevDate, isCurrentMonth: false });
     }
     
-    // Días del mes actual
+    // Current month days
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, month, day);
       days.push({ date, isCurrentMonth: true });
     }
     
-    // Completar la semana con días del siguiente mes
+    // Next month days to complete grid
     const remaining = 42 - days.length;
     for (let day = 1; day <= remaining; day++) {
       const nextDate = new Date(year, month + 1, day);
@@ -171,7 +133,7 @@ export default function AgendacionPage({ eventId }: EventRegistrationProps) {
     return days;
   };
 
-  // Funciones de hover con GSAP
+  // GSAP hover animations
   const handleDayHover = (element: HTMLElement, isHover: boolean) => {
     gsap.to(element, {
       scale: isHover ? 1.05 : 1,
@@ -191,7 +153,7 @@ export default function AgendacionPage({ eventId }: EventRegistrationProps) {
   const handleDateSelect = (date: Date) => {
     if (date < new Date()) return;
     
-    // Animación de selección
+    // Selection animation
     const dayButton = event?.target as HTMLElement;
     if (dayButton) {
       gsap.fromTo(dayButton,
@@ -208,11 +170,10 @@ export default function AgendacionPage({ eventId }: EventRegistrationProps) {
     
     setSelectedDate(date);
     setTimeSlots(generateTimeSlots(date));
-    // No cambiar automáticamente de paso, mantener calendario y horarios visibles
   };
 
   const handleTimeSelect = (time: string) => {
-    // Animación de selección
+    // Selection animation
     const timeButton = event?.target as HTMLElement;
     if (timeButton) {
       gsap.fromTo(timeButton,
@@ -232,7 +193,6 @@ export default function AgendacionPage({ eventId }: EventRegistrationProps) {
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
->>>>>>> 127bb7298e01b7fa9aa2d1fe9597acc430237917
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     if (errors[name]) {
@@ -255,44 +215,47 @@ export default function AgendacionPage({ eventId }: EventRegistrationProps) {
     return Object.keys(newErrors).length === 0;
   };
 
+  // --- SOLUCIONES COMPROBADAS ---
+  // Si quieres crear un CONTACTO:
+  const createContact = async () => {
+    const contactData = {
+      name: formData.name,
+      email: formData.email,
+      // phone: "", // Si tienes el campo en el formulario
+      // timezone: "America/Bogota" // Si tienes este dato
+    };
+
+    return api.post(API_ENDPOINTS.contacts.create, contactData);
+  };
+
+  // Si quieres crear una RESERVA/BOOKING:
+  const createBooking = async () => {
+    const bookingData = {
+      event_type_id: eventData?.id,
+      invitee_name: formData.name,
+      invitee_email: formData.email,
+      start_time: `${selectedDate?.toISOString().split('T')[0]} ${selectedTime}:00`,
+      notes: formData.notes
+    };
+
+    return api.post(API_ENDPOINTS.bookings.create, bookingData);
+  };
+
+  // Puedes elegir cuál acción ejecutar según tu lógica:
   const handleSubmit = async () => {
-<<<<<<< HEAD
-    if (!validateForm() || !eventData) return;
-    setIsSubmitting(true);
-    try {
-      const contactData = {
-        name: formData.name,
-        email: formData.email
-      };
-      const contactResponse = await api.post(API_ENDPOINTS.contacts.create, contactData);
-      if (contactResponse.data.success) {
-        toast.success("¡Registro exitoso!", {
-          description: `Te has registrado para "${eventData.name}"`
-        });
-        setFormData({ name: "", email: "" });
-        setIsRegistered(true);
-      }
-    } catch (error: any) {
-      console.error("Error en registro:", error);
-      if (error.response?.status === 409) {
-        toast.error("Este correo ya está registrado");
-      } else {
-        toast.error("Error al registrarse. Intenta nuevamente");
-=======
     if (!validateForm() || !eventData || !selectedDate || !selectedTime) return;
-    
     setIsSubmitting(true);
     try {
-      const bookingData = {
-        name: formData.name,
-        email: formData.email,
-        notes: formData.notes,
-        event_id: eventData.id,
-        scheduled_date: selectedDate.toISOString().split('T')[0],
-        scheduled_time: selectedTime
-      };
-      
-      const response = await api.post(API_ENDPOINTS.contacts.create, bookingData);
+      // --- Si quieres crear SOLO contacto, descomenta lo siguiente ---
+      // const response = await createContact();
+
+      // --- Si quieres crear SOLO reserva/booking, descomenta lo siguiente ---
+      const response = await createBooking();
+
+      // --- Si necesitas crear contacto Y luego reserva, puedes hacer esto ---
+      // await createContact();
+      // const response = await createBooking();
+
       if (response.data.success) {
         setCurrentStep(4);
         toast.success("¡Reserva confirmada!", {
@@ -305,21 +268,12 @@ export default function AgendacionPage({ eventId }: EventRegistrationProps) {
         toast.error("Este horario ya no está disponible");
       } else {
         toast.error("Error al realizar la reserva. Intenta nuevamente");
->>>>>>> 127bb7298e01b7fa9aa2d1fe9597acc430237917
       }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-<<<<<<< HEAD
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p>Cargando evento...</p>
-=======
   const goToPreviousMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
   };
@@ -359,7 +313,6 @@ export default function AgendacionPage({ eventId }: EventRegistrationProps) {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500 mx-auto mb-4"></div>
           <p className="text-gray-800">Cargando evento...</p>
->>>>>>> 127bb7298e01b7fa9aa2d1fe9597acc430237917
         </div>
       </div>
     );
@@ -367,11 +320,7 @@ export default function AgendacionPage({ eventId }: EventRegistrationProps) {
 
   if (!eventData) {
     return (
-<<<<<<< HEAD
-      <div className="min-h-screen flex items-center justify-center">
-=======
       <div className="min-h-screen flex items-center justify-center bg-white">
->>>>>>> 127bb7298e01b7fa9aa2d1fe9597acc430237917
         <Card className="w-full max-w-md">
           <CardContent className="p-6 text-center">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
@@ -386,133 +335,9 @@ export default function AgendacionPage({ eventId }: EventRegistrationProps) {
   }
 
   return (
-<<<<<<< HEAD
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="max-w-md mx-auto">
-        <Card className="mb-6 border-blue-200">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl text-blue-600">
-              {eventData.name}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-muted-foreground text-center">
-              {eventData.description || "Únete a este evento"}
-            </p>
-            <div className="flex items-center justify-center gap-6 text-sm">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-blue-500" />
-                <span>{eventData.duration_minutes} min</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-blue-500" />
-                <span className="capitalize">
-                  {eventData.location_type.replace("_", " ")}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {isRegistered ? (
-          <Card className="border-green-300">
-            <CardHeader className="text-center">
-              <Check className="h-10 w-10 text-green-500 mx-auto mb-2" />
-              <CardTitle className="text-xl text-green-600">
-                ¡Te has registrado exitosamente!
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-center">
-              <p className="text-muted-foreground">
-                Revisa tu correo para más detalles del evento.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-center">Regístrate al evento</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">
-                  Nombre completo <span className="text-red-500">*</span>
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    placeholder="Tu nombre completo"
-                    className={errors.name ? "border-red-500" : ""}
-                  />
-                  <User className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                </div>
-                {errors.name && (
-                  <p className="text-sm text-red-500 flex items-center gap-1">
-                    <AlertCircle className="h-4 w-4" />
-                    {errors.name}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">
-                  Correo electrónico <span className="text-red-500">*</span>
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    placeholder="tu@correo.com"
-                    className={errors.email ? "border-red-500" : ""}
-                  />
-                  <Mail className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                </div>
-                {errors.email && (
-                  <p className="text-sm text-red-500 flex items-center gap-1">
-                    <AlertCircle className="h-4 w-4" />
-                    {errors.email}
-                  </p>
-                )}
-              </div>
-
-              <Button
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className="w-full bg-blue-600 hover:bg-blue-700"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Registrando...
-                  </>
-                ) : (
-                  <>
-                    <Check className="mr-2 h-4 w-4" />
-                    Registrarme al evento
-                  </>
-                )}
-              </Button>
-
-              <p className="text-xs text-center text-muted-foreground">
-                Al registrarte, recibirás información sobre el evento en tu correo
-              </p>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    </div>
-  );
-}
-=======
     <div className="flex justify-center items-center py-8 px-4 min-h-screen bg-white">
       <div className="w-full max-w-5xl">
-        {/* Header con información del evento */}
+        {/* Event information header */}
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-pink-500 rounded-full flex items-center justify-center">
@@ -543,12 +368,12 @@ export default function AgendacionPage({ eventId }: EventRegistrationProps) {
           </div>
         </div>
 
-        {/* Contenido principal */}
+        {/* Main content */}
         <div className="relative flex">
-          {/* Paso 1 y 2: Calendario y Horarios lado a lado */}
+          {/* Step 1 and 2: Calendar and Time slots side by side */}
           {(currentStep === 1 || currentStep === 2) && (
             <div className="flex w-full justify-center gap-6">
-              {/* Calendario */}
+              {/* Calendar */}
               <Card className="w-full hover:shadow-md transition-all duration-200 border-l-4 border-l-pink-400">
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
@@ -627,7 +452,7 @@ export default function AgendacionPage({ eventId }: EventRegistrationProps) {
                 </CardContent>
               </Card>
 
-              {/* Horarios */}
+              {/* Time slots */}
               <Card className="w-full hover:shadow-md transition-all duration-200 border-l-4 border-l-pink-400">
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
@@ -683,7 +508,7 @@ export default function AgendacionPage({ eventId }: EventRegistrationProps) {
             </div>
           )}
 
-          {/* Paso 3: Formulario */}
+          {/* Step 3: Form */}
           {currentStep === 3 && (
             <div className="max-w-2xl mx-auto">
               <Card className="hover:shadow-md transition-all duration-200 border-l-4 border-l-pink-400">
@@ -691,7 +516,7 @@ export default function AgendacionPage({ eventId }: EventRegistrationProps) {
                   <CardTitle className="text-xl">Completa tu reserva</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {/* Resumen de la cita seleccionada */}
+                  {/* Selected appointment summary */}
                   {selectedDate && selectedTime && (
                     <div className="bg-muted p-4 rounded-lg border border-pink-400/30 mb-6">
                       <div className="flex items-center gap-2 text-muted-foreground mb-2">
@@ -808,7 +633,7 @@ export default function AgendacionPage({ eventId }: EventRegistrationProps) {
             </div>
           )}
 
-          {/* Paso 4: Confirmación */}
+          {/* Step 4: Confirmation */}
           {currentStep === 4 && (
             <div className="max-w-2xl mx-auto">
               <Card className="border border-pink-400/50 text-center hover:shadow-md transition-all duration-200">
@@ -857,4 +682,3 @@ export default function AgendacionPage({ eventId }: EventRegistrationProps) {
     </div>
   );
 }
->>>>>>> 127bb7298e01b7fa9aa2d1fe9597acc430237917

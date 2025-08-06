@@ -70,7 +70,8 @@ export interface ApiResponse<T> {
 }
 
 class EventsService {
-  private readonly API_BASE_URL = 'https://vsw8xr61-3000.use2.devtunnels.ms'; // Cambia esto a tu URL base real
+  private readonly API_BASE_URL = 'http://localhost:3000'; // Cambia esto a tu URL base real
+
   private readonly baseUrl = '/api/events';
   
 
