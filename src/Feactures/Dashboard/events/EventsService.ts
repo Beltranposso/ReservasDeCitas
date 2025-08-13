@@ -1,6 +1,5 @@
 // src/features/dashboard/events/EventsService.ts
-// VERSIÓN COMPLETA CON MANEJO DE PREGUNTAS
-
+// VERSIÓN COMPLETA CON MANEJO DE PREGUNTAS + SOPORTE PARA IFRAME EMBED Y FECHAS DISPONIBLES
 
 export interface EventType {
   id?: number;
@@ -69,16 +68,27 @@ export interface ApiResponse<T> {
   error?: string;
 }
 
-class EventsService {
-  private readonly API_BASE_URL = 'http://localhost:3000'; // Cambia esto a tu URL base real
+// Tipo para eventos de Google (ajusta según tu backend real)
+export interface GoogleEvent {
+  id: string;
+  htmlLink: string;
+  summary?: string;
+  start?: { dateTime?: string; timeZone?: string };
+  end?: { dateTime?: string; timeZone?: string };
+  hangoutLink?: string;
+}
 
+// Respuesta para fechas disponibles del calendario
+export type AvailableDatesResponse = string[];
+
+class EventsService {
+  // Cambia a tu URL base real en producción
+  private readonly API_BASE_URL = 'http://localhost:3000';
+
+  // Prefijo común de rutas de eventos en el backend
   private readonly baseUrl = '/api/events';
-  
 
   // ========== MÉTODOS DE GOOGLE ==========
-
-  // Definición de la interfaz para los eventos de Google
-
 
   async createGoogleMeeting(eventData: {
     title: string;
@@ -93,23 +103,20 @@ class EventsService {
 
       const response = await fetch(`${this.API_BASE_URL}/api/integrations/google/meetings`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('authToken')}`
-        },
+        headers: this.getHeaders(),
         body: JSON.stringify(eventData)
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Error al crear evento');
+        const errorData = await safeJson(response);
+        throw new Error(errorData?.message || 'Error al crear evento');
       }
 
-      const data = await response.json();
-      return data.data;
+      const data = await safeJson(response);
+      return data.data as GoogleEvent;
     } catch (error: any) {
       console.error('❌ Error al crear evento con Google Meet:', error);
-      throw new Error(error.message || 'No se pudo crear el evento con Google Meet');
+      throw new Error(error?.message || 'No se pudo crear el evento con Google Meet');
     }
   }
   
@@ -127,9 +134,9 @@ class EventsService {
     return headers;
   }
 
-  // Método auxiliar para manejar respuestas HTTP
+  // Método auxiliar para manejar respuestas HTTP con forma { success, data, ... }
   private async handleResponse<T>(response: Response): Promise<T> {
-    const data = await response.json();
+    const data = await safeJson(response);
     
     console.log(`📡 HTTP ${response.status}:`, {
       url: response.url,
@@ -139,15 +146,76 @@ class EventsService {
     });
 
     if (!response.ok) {
-      const errorMessage = data.message || data.error || `HTTP ${response.status}: ${response.statusText}`;
+      const errorMessage = data?.message || data?.error || `HTTP ${response.status}: ${response.statusText}`;
       throw new Error(errorMessage);
     }
 
-    if (!data.success) {
+    // Solo validar success si viene en la respuesta (algunos endpoints pueden no incluirlo)
+    if (typeof data?.success !== 'undefined' && !data.success) {
       throw new Error(data.message || 'La operación no fue exitosa');
     }
 
-    return data.data;
+    return data?.data as T;
+  }
+
+  // ========== SOPORTE IFRAME/WIDGET ==========
+
+  /**
+   * Construye la URL del iframe embed para un evento
+   * GET /api/events/embed/:eventId
+   */
+  getEventEmbedUrl(
+    eventId: number,
+    options?: { theme?: 'light' | 'dark' | 'auto'; brandColor?: string }
+  ): string {
+    if (!eventId || eventId <= 0) throw new Error('ID de evento inválido');
+    const theme = options?.theme || 'auto';
+    const brandColor = (options?.brandColor || '0069ff').replace('#', '');
+    return `${this.API_BASE_URL}${this.baseUrl}/embed/${eventId}?theme=${encodeURIComponent(theme)}&brandColor=${encodeURIComponent(brandColor)}`;
+  }
+
+  /**
+   * Construye la URL del script del widget flotante
+   * GET /api/events/widget.js?eventId=XX&theme=auto&brandColor=0069ff
+   */
+  getWidgetScriptUrl(
+    eventId: number,
+    options?: { theme?: 'light' | 'dark' | 'auto'; brandColor?: string }
+  ): string {
+    if (!eventId || eventId <= 0) throw new Error('ID de evento inválido');
+    const theme = options?.theme || 'auto';
+    const brandColor = (options?.brandColor || '0069ff').replace('#', '');
+    const params = new URLSearchParams({ eventId: String(eventId), theme, brandColor });
+    return `${this.API_BASE_URL}${this.baseUrl}/widget.js?${params.toString()}`;
+  }
+
+  /**
+   * Obtener fechas disponibles para un evento (para el calendario de reserva)
+   * GET /api/events/:id/available-dates
+   */
+  async getAvailableDates(eventId: number): Promise<AvailableDatesResponse> {
+    try {
+      if (!eventId || eventId <= 0) {
+        throw new Error('ID de evento inválido');
+      }
+
+      const response = await fetch(`${this.API_BASE_URL}${this.baseUrl}/${eventId}/available-dates`, {
+        method: 'GET',
+        headers: this.getHeaders()
+      });
+
+      if (!response.ok) {
+        const errorData = await safeJson(response);
+        throw new Error(errorData?.message || 'No se pudieron obtener las fechas disponibles');
+      }
+
+      const data = await safeJson(response);
+      // Esperamos { success: true, data: string[] }
+      return (data?.data as string[]) || [];
+    } catch (error: any) {
+      console.error('❌ EventsService: Error obteniendo fechas disponibles:', error);
+      return [];
+    }
   }
 
   // ========== MÉTODOS DE EVENTOS ==========
@@ -171,7 +239,7 @@ class EventsService {
         throw new Error('La URL personalizada es requerida');
       }
 
-      const response = await fetch(`${this.API_BASE_URL}/api/events`, {
+      const response = await fetch(`${this.API_BASE_URL}${this.baseUrl}`, {
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify(eventData)
@@ -185,12 +253,11 @@ class EventsService {
     } catch (error: any) {
       console.error('❌ EventsService: Error creando evento:', error);
       
-      // Mejorar mensajes de error
-      if (error.message.includes('custom_url')) {
+      if (error.message?.includes('custom_url')) {
         throw new Error('La URL personalizada ya está en uso. Prueba con otra.');
       }
       
-      if (error.message.includes('network') || error.message.includes('fetch')) {
+      if (error.message?.includes('network') || error.message?.includes('fetch')) {
         throw new Error('Error de conexión. Verifica tu conexión a internet.');
       }
       
@@ -203,7 +270,7 @@ class EventsService {
     try {
       console.log('🔍 EventsService: Obteniendo mis eventos');
       
-      const response = await fetch(`${this.API_BASE_URL}/api/events/my-events`, {
+      const response = await fetch(`${this.API_BASE_URL}${this.baseUrl}/my-events`, {
         method: 'GET',
         headers: this.getHeaders()
       });
@@ -216,7 +283,7 @@ class EventsService {
     } catch (error: any) {
       console.error('❌ EventsService: Error obteniendo mis eventos:', error);
       
-      if (error.message.includes('network') || error.message.includes('fetch')) {
+      if (error.message?.includes('network') || error.message?.includes('fetch')) {
         throw new Error('Error de conexión al obtener tus eventos');
       }
       
@@ -233,7 +300,7 @@ class EventsService {
         throw new Error('ID de evento inválido');
       }
 
-      const response = await fetch(`${this.API_BASE_URL}/api/events/${id}/details`, {
+      const response = await fetch(`${this.API_BASE_URL}${this.baseUrl}/${id}/details`, {
         method: 'GET',
         headers: this.getHeaders()
       });
@@ -254,7 +321,7 @@ class EventsService {
     try {
       console.log('🔍 EventsService: Obteniendo lista de eventos');
       
-      const response = await fetch(`${this.API_BASE_URL}/api/events`, {
+      const response = await fetch(`${this.API_BASE_URL}${this.baseUrl}`, {
         method: 'GET',
         headers: this.getHeaders()
       });
@@ -266,8 +333,7 @@ class EventsService {
     } catch (error: any) {
       console.error('❌ EventsService: Error obteniendo eventos:', error);
       
-      // En caso de error, retornar array vacío para no romper la UI
-      if (error.message.includes('network') || error.message.includes('fetch')) {
+      if (error.message?.includes('network') || error.message?.includes('fetch')) {
         throw new Error('Error de conexión al obtener eventos');
       }
       
@@ -284,7 +350,7 @@ class EventsService {
         throw new Error('ID de evento inválido');
       }
 
-      const response = await fetch(`${this.API_BASE_URL}/api/events/${id}`, {
+      const response = await fetch(`${this.API_BASE_URL}${this.baseUrl}/${id}`, {
         method: 'GET',
         headers: this.getHeaders()
       });
@@ -314,7 +380,7 @@ class EventsService {
         throw new Error('La duración debe ser de al menos 5 minutos');
       }
 
-      const response = await fetch(`${this.API_BASE_URL}/api/events/${id}`, {
+      const response = await fetch(`${this.API_BASE_URL}${this.baseUrl}/${id}`, {
         method: 'PATCH',
         headers: this.getHeaders(),
         body: JSON.stringify(eventData)
@@ -328,7 +394,7 @@ class EventsService {
     } catch (error: any) {
       console.error('❌ EventsService: Error actualizando evento:', error);
       
-      if (error.message.includes('custom_url')) {
+      if (error.message?.includes('custom_url')) {
         throw new Error('La URL personalizada ya está en uso');
       }
       
@@ -345,12 +411,12 @@ class EventsService {
         throw new Error('ID de evento inválido');
       }
 
-      const response = await fetch(`${this.API_BASE_URL}/api/events/${id}`, {
+      const response = await fetch(`${this.API_BASE_URL}${this.baseUrl}/${id}`, {
         method: 'DELETE',
         headers: this.getHeaders()
       });
 
-      const data = await response.json();
+      const data = await safeJson(response);
       
       console.log('📡 Respuesta de eliminación:', {
         status: response.status,
@@ -358,24 +424,24 @@ class EventsService {
       });
 
       if (!response.ok) {
-        const errorMessage = data.message || `Error HTTP ${response.status}`;
+        const errorMessage = data?.message || `Error HTTP ${response.status}`;
         throw new Error(errorMessage);
       }
 
-      if (data.success) {
+      if (data?.success) {
         console.log('✅ EventsService: Evento eliminado exitosamente');
         return {
           success: true,
           dependencies: data.dependencies
         };
       } else {
-        throw new Error(data.message || 'Error al eliminar evento');
+        throw new Error(data?.message || 'Error al eliminar evento');
       }
 
     } catch (error: any) {
       console.error('❌ EventsService: Error eliminando evento:', error);
       
-      if (error.message.includes('datos relacionados') || error.message.includes('constraint')) {
+      if (error.message?.includes('datos relacionados') || error.message?.includes('constraint')) {
         throw new Error('No se puede eliminar: el evento tiene reservas o datos relacionados');
       }
       
@@ -392,7 +458,7 @@ class EventsService {
         throw new Error('ID de evento inválido');
       }
 
-      const response = await fetch(`${this.API_BASE_URL}/api/events/${id}/dependencies`, {
+      const response = await fetch(`${this.API_BASE_URL}${this.baseUrl}/${id}/dependencies`, {
         method: 'GET',
         headers: this.getHeaders()
       });
@@ -405,7 +471,6 @@ class EventsService {
     } catch (error: any) {
       console.error('❌ EventsService: Error verificando dependencias:', error);
       
-      // Retornar valores por defecto en caso de error
       return { 
         questions: 0, 
         bookings: 0, 
@@ -417,8 +482,6 @@ class EventsService {
 
   // ========== MÉTODOS DE PREGUNTAS ==========
 
-  // ========== MÉTODOS CORRESPONDIENTES A RUTAS BACKEND ==========
-
   // GET /api/events/:id/questions - Obtener preguntas de un evento
   async getEventQuestions(eventId: number): Promise<EventQuestion[]> {
     try {
@@ -428,7 +491,7 @@ class EventsService {
         throw new Error('ID de evento inválido');
       }
 
-      const response = await fetch(`${this.API_BASE_URL}/api/events/${eventId}/questions`, {
+      const response = await fetch(`${this.API_BASE_URL}${this.baseUrl}/${eventId}/questions`, {
         method: 'GET',
         headers: this.getHeaders()
       });
@@ -440,8 +503,6 @@ class EventsService {
 
     } catch (error: any) {
       console.error('❌ EventsService: Error obteniendo preguntas:', error);
-      
-      // En caso de error, retornar array vacío
       return [];
     }
   }
@@ -462,10 +523,10 @@ class EventsService {
       // Si no se especifica orden, obtener el siguiente disponible
       if (!questionData.question_order) {
         const existingQuestions = await this.getEventQuestions(eventId);
-        questionData.question_order = existingQuestions.length + 1;
+        questionData.question_order = (existingQuestions?.length || 0) + 1;
       }
 
-      const response = await fetch(`${this.API_BASE_URL}/api/events/${eventId}/questions`, {
+      const response = await fetch(`${this.API_BASE_URL}${this.baseUrl}/${eventId}/questions`, {
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify(questionData)
@@ -482,10 +543,6 @@ class EventsService {
     }
   }
 
-  // ========== MÉTODOS ADICIONALES PARA COMPLETAR LA API ==========
-
-  // Métodos que podrías necesitar agregar al backend más adelante:
-
   // PATCH /api/events/:id/questions/:questionId - Actualizar pregunta específica
   async updateEventQuestion(eventId: number, questionId: number, questionData: Partial<CreateEventQuestionData>): Promise<EventQuestion> {
     try {
@@ -499,7 +556,7 @@ class EventsService {
         throw new Error('ID de pregunta inválido');
       }
 
-      const response = await fetch(`${this.API_BASE_URL}/api/events/${eventId}/questions/${questionId}`, {
+      const response = await fetch(`${this.API_BASE_URL}${this.baseUrl}/${eventId}/questions/${questionId}`, {
         method: 'PATCH',
         headers: this.getHeaders(),
         body: JSON.stringify(questionData)
@@ -529,15 +586,15 @@ class EventsService {
         throw new Error('ID de pregunta inválido');
       }
 
-      const response = await fetch(`${this.API_BASE_URL}/api/events/${eventId}/questions/${questionId}`, {
+      const response = await fetch(`${this.API_BASE_URL}${this.baseUrl}/${eventId}/questions/${questionId}`, {
         method: 'DELETE',
         headers: this.getHeaders()
       });
 
-      const data = await response.json();
+      const data = await safeJson(response);
       
       if (!response.ok) {
-        const errorMessage = data.message || `Error HTTP ${response.status}`;
+        const errorMessage = data?.message || `Error HTTP ${response.status}`;
         throw new Error(errorMessage);
       }
 
@@ -562,7 +619,7 @@ class EventsService {
         throw new Error('Lista de IDs de preguntas inválida');
       }
 
-      const response = await fetch(`${this.API_BASE_URL}/api/events/${eventId}/questions/reorder`, {
+      const response = await fetch(`${this.API_BASE_URL}${this.baseUrl}/${eventId}/questions/reorder`, {
         method: 'PATCH',
         headers: this.getHeaders(),
         body: JSON.stringify({ questionIds })
@@ -579,7 +636,7 @@ class EventsService {
     }
   }
 
-  // Método auxiliar para guardar múltiples preguntas
+  // Guardar múltiples preguntas (crea/actualiza según tenga id)
   async saveEventQuestions(eventId: number, questions: EventQuestion[]): Promise<EventQuestion[]> {
     try {
       console.log('💾 EventsService: Guardando preguntas del evento', eventId, questions);
@@ -640,7 +697,6 @@ class EventsService {
         return { valid: false, message: 'La URL no puede estar vacía' };
       }
 
-      // Validaciones básicas
       if (url.length < 3) {
         return { valid: false, message: 'La URL debe tener al menos 3 caracteres' };
       }
@@ -649,13 +705,11 @@ class EventsService {
         return { valid: false, message: 'La URL no puede exceder 50 caracteres' };
       }
 
-      // URLs reservadas
       const reservedUrls = ['admin', 'api', 'www', 'test', 'root', 'system', 'app', 'book', 'calendar'];
       if (reservedUrls.includes(url.toLowerCase())) {
         return { valid: false, message: 'Esta URL está reservada' };
       }
 
-      // Caracteres válidos
       if (!/^[a-z0-9\-]+$/.test(url)) {
         return { valid: false, message: 'Solo se permiten letras minúsculas, números y guiones' };
       }
@@ -673,7 +727,7 @@ class EventsService {
     try {
       console.log('📊 EventsService: Obteniendo estadísticas');
       
-      const response = await fetch(`${this.API_BASE_URL}/api/events/stats`, {
+      const response = await fetch(`${this.API_BASE_URL}${this.baseUrl}/stats`, {
         method: 'GET',
         headers: this.getHeaders()
       });
@@ -746,7 +800,6 @@ class EventsService {
     try {
       console.log('🔄 EventsService: Refrescando lista de eventos');
       
-      // Pequeña pausa para asegurar que los cambios se hayan procesado
       await new Promise(resolve => setTimeout(resolve, 100));
       
       return await this.getAllEventTypes();
@@ -754,6 +807,15 @@ class EventsService {
       console.error('❌ EventsService: Error refrescando lista:', error);
       throw error;
     }
+  }
+}
+
+// Helper para parsear JSON de forma segura
+async function safeJson(response: Response): Promise<any> {
+  try {
+    return await response.json();
+  } catch {
+    return null;
   }
 }
 

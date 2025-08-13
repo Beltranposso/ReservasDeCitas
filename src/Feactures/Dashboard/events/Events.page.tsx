@@ -1,3 +1,5 @@
+/* Key change: only mount ShareModal when shareData is not null */
+
 import { Button } from "../../../components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs"
@@ -112,7 +114,10 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
   // Función para abrir el modal de compartir
   const handleShareEvent = (event: EventType) => {
     const bookingUrl = `${window.location.origin}/book/${event.id}`;
-    const embedUrl = `${window.location.origin}/embed/${event.id}`;
+    const embedUrl = eventsService.getEventEmbedUrl(event.id, {
+      theme: embedTheme as any,
+      brandColor: brandColor.replace('#', '')
+    });
 
     setShareData({
       eventId: event.id,
@@ -126,88 +131,55 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
   // Función para generar el código del iframe
   const generateIframeCode = () => {
     if (!shareData) return "";
-
+    const src = eventsService.getEventEmbedUrl(shareData.eventId, {
+      theme: embedTheme as any,
+      brandColor: brandColor.replace('#', '')
+    });
     return `<iframe
-  src="${shareData.embedUrl}?theme=${embedTheme}&hideEventTypeDetails=${hideEventDetails}&brandColor=${brandColor.replace('#', '')}"
+  src="${src}"
   width="100%"
   height="600"
-  frameborder="0">
+  frameborder="0"
+  style="border:0;border-radius:12px;box-shadow:0 2px 12px #0001;">
 </iframe>`;
   };
 
   // Función para generar el código del botón flotante
   const generateFloatingButtonCode = () => {
     if (!shareData) return "";
-
-    return `<!-- Cal floating-popup embed code begins -->
-<script type="text/javascript">
-  (function (C, A, L) { 
-    let p = function (a, ar) { a.q.push(ar); }; 
-    let d = C.document; 
-    C.Cal = C.Cal || function () { 
-      let cal = C.Cal; 
-      let ar = arguments; 
-      if (!cal.loaded) {
-        cal.ns = {}; 
-        cal.q = cal.q || []; 
-        d.head.appendChild(d.createElement("script")).src = A; 
-        cal.loaded = true; 
-      } 
-      if (ar[0] === L) { 
-        const api = function () { p(api, arguments); }; 
-        const namespace = ar[1]; 
-        api.q = api.q || []; 
-        if(typeof namespace === "string"){
-          cal.ns[namespace] = cal.ns[namespace] || api;
-          cal.ns[namespace].q = cal.ns[namespace].q || [];
-          cal.ns[namespace].q.push(...api.q);
-        } else {
-          p(cal, ar);
-        }
-        return;
-      }
-      p(cal, ar); 
-    }; 
-  })(window, "https://app.cal.com/embed/embed.js", "init");
-  
-  Cal("init", {origin:"${window.location.origin}"});
-  
-  Cal("floatingButton", {
-    calLink: "${shareData.bookingUrl}",
-    config: {
-      theme: "${embedTheme}",
-      brandColor: "${brandColor}",
-      hideEventTypeDetails: ${hideEventDetails}
-    },
-    buttonText: "${buttonText}",
-    buttonPosition: "${buttonPosition}",
-    buttonColor: "${buttonColor}",
-    buttonTextColor: "${textColor}"
-  });
-</script>
-<!-- Cal floating-popup embed code ends -->`;
+    const widgetUrl = eventsService.getWidgetScriptUrl(shareData.eventId, {
+      theme: embedTheme as any,
+      brandColor: brandColor.replace('#', '')
+    });
+    const params = new URLSearchParams({
+      buttonText,
+      buttonPosition,
+      buttonColor: buttonColor.replace('#', ''),
+      textColor: textColor.replace('#', ''),
+    }).toString();
+    return `<!-- Floating booking widget -->
+<script src="${widgetUrl}&${params}" async></script>`;
   };
 
-  // Función para generar el código React
+  // Función para generar el código React (iframe simple)
   const generateReactCode = () => {
     if (!shareData) return "";
+    const src = eventsService.getEventEmbedUrl(shareData.eventId, {
+      theme: embedTheme as any,
+      brandColor: brandColor.replace('#', '')
+    });
+    return `import React from "react";
 
-    return `import Cal, { getCalApi } from "@calcom/embed-react";
-import { useEffect } from "react";
-
-export default function MyApp() {
-  useEffect(()=>{
-    (async function () {
-      const cal = await getCalApi();
-      cal("ui", {"theme":"${embedTheme}","styles":{"branding":{"brandColor":"${brandColor}"}},"hideEventTypeDetails":${hideEventDetails}});
-    })();
-  }, [])
-  
+export default function BookingEmbed() {
   return (
-    <Cal
-      calLink="${shareData.eventName.toLowerCase().replace(/\s+/g, '-')}"
-      style={{width:"100%",height:"100%",overflow:"scroll"}}
-      config={{"theme":"${embedTheme}"}}
+    <iframe
+      src="${src}"
+      width="100%"
+      height="600"
+      style={{ border: 0, borderRadius: 12, boxShadow: "0 2px 12px #0001" }}
+      frameBorder={0}
+      title="Reserva tu evento"
+      allowTransparency
     />
   );
 }`;
@@ -609,36 +581,41 @@ export default function MyApp() {
         ))}
       </div>
 
-      {/* Share Modal */}
-      <ShareModal
-        isOpen={shareModalOpen}
-        onOpenChange={setShareModalOpen}
-        shareData={shareData}
-        selectedTab={selectedTab}
-        onTabChange={setSelectedTab}
-        embedConfig={{
-          theme: embedTheme,
-          setTheme: setEmbedTheme,
-          hideDetails: hideEventDetails,
-          setHideDetails: setHideEventDetails,
-          brandColor,
-          setBrandColor,
-          buttonText,
-          setButtonText,
-          buttonPosition,
-          setButtonPosition,
-          buttonColor,
-          setButtonColor,
-          textColor,
-          setTextColor
-        }}
-        onCopyToClipboard={copyToClipboard}
-        generateCodes={{
-          iframe: generateIframeCode,
-          floating: generateFloatingButtonCode,
-          react: generateReactCode
-        }}
-      />
+      {/* Share Modal (CONDICIONAL) */}
+      {shareData && (
+        <ShareModal
+          isOpen={shareModalOpen}
+          onOpenChange={(open) => {
+            setShareModalOpen(open);
+            if (!open) setShareData(null);
+          }}
+          shareData={shareData}
+          selectedTab={selectedTab}
+          onTabChange={setSelectedTab}
+          embedConfig={{
+            theme: embedTheme,
+            setTheme: setEmbedTheme,
+            hideDetails: hideEventDetails,
+            setHideDetails: setHideEventDetails,
+            brandColor,
+            setBrandColor,
+            buttonText,
+            setButtonText,
+            buttonPosition,
+            setButtonPosition,
+            buttonColor,
+            setButtonColor,
+            textColor,
+            setTextColor
+          }}
+          onCopyToClipboard={copyToClipboard}
+          generateCodes={{
+            iframe: generateIframeCode,
+            floating: generateFloatingButtonCode,
+            react: generateReactCode
+          }}
+        />
+      )}
 
       {/* Edit Modal */}
       <EditEventModal
@@ -678,9 +655,6 @@ export default function EventsPage() {
     if (linkGenerated) {
       navigator.clipboard.writeText(linkGenerated);
       toast.success("Enlace de Google Meet copiado al portapapeles automáticamente");
-      // Si quieres mostrar la animación aquí también, puedes hacer:
-      // setShowCopyToast(true);
-      // setTimeout(() => setShowCopyToast(false), 1400);
     }
   };
 

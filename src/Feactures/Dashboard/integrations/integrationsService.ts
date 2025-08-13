@@ -54,7 +54,8 @@ export interface AvailabilityCheck {
 }
 
 class IntegrationsService {
-  private readonly baseUrl = 'https://vsw8xr61-3000.use2.devtunnels.ms/api/integrations/google';
+  private readonly baseUrl = 'http://localhost:3000/api/integrations/google';
+
 
   // Obtener estado de integraciones
   async getIntegrationsStatus(): Promise<Integration[]> {
