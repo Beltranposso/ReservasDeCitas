@@ -56,58 +56,64 @@ export default function ContactsPage() {
   }, [contacts, searchTerm])
 
   // Función para obtener todos los contactos
-  const fetchContacts = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      
-      const response = await api.get<ContactsResponse>(API_ENDPOINTS.contacts.getAll)
-      
-      if (response.data.success) {
-        // El endpoint getAll devuelve directamente el array de contactos
-        const contactsData = Array.isArray(response.data.data) 
-          ? response.data.data 
-          : response.data.data?.contacts || []
-        
-        setContacts(contactsData)
-      } else {
-        setError(response.data.message || 'Error al cargar contactos')
-      }
-    } catch (err: any) {
-      console.error('Error fetching contacts:', err)
-      
-      // Manejo específico de errores HTTP
-      if (err.response) {
-        const status = err.response.status
-        const errorMessage = err.response.data?.message || err.response.data?.error
-        
-        switch (status) {
-          case 401:
-            setError('No autorizado. Por favor, inicia sesión nuevamente.')
-            break
-          case 403:
-            setError('No tienes permisos para ver los contactos.')
-            break
-          case 404:
-            setError('Endpoint de contactos no encontrado.')
-            break
-          case 500:
-            setError('Error interno del servidor.')
-            break
-          default:
-            setError(errorMessage || `Error del servidor (${status})`)
-        }
-      } else if (err.request) {
-        setError('Error de conexión al servidor. Verifica tu conexión a internet.')
-      } else {
-        setError('Error inesperado al cargar contactos')
-      }
-      
-      toast.error('No se pudieron cargar los contactos')
-    } finally {
-      setLoading(false)
+const fetchContacts = async () => {
+  try {
+    setLoading(true)
+    setError(null)
+
+    console.log(`Llamando a: ${API_ENDPOINTS.contacts.getAll}`) // 🔍 Verifica la URL
+
+    const response = await api.get(API_ENDPOINTS.contacts.getAll)
+
+    console.log('Respuesta completa:', response)
+
+    // ✅ Validación de status HTTP
+    if (response.status !== 200) {
+      console.error(`Error: status ${response.status} - Ruta no encontrada o incorrecta`)
+      setError(`Ruta no encontrada (status ${response.status})`)
+      return
     }
+
+    // ✅ Validación de la estructura esperada
+    if (!response.data) {
+      console.error('Error: la respuesta no contiene datos')
+      setError('Respuesta vacía del servidor')
+      return
+    }
+
+    // ✅ Logs para inspección
+    console.log('Datos recibidos:', response.data)
+
+    // Lógica para extraer contactos sin romper si la estructura es diferente
+    const contactsData = Array.isArray(response.data)
+      ? response.data
+      : Array.isArray(response.data.data)
+        ? response.data.data
+        : response.data.data?.contacts || []
+
+    setContacts(contactsData)
+  } catch (err: any) {
+    console.error('Error al llamar la API:', err)
+
+    if (err.response) {
+      console.error(`Error HTTP ${err.response.status}: ${err.response.data?.message || 'Sin mensaje'}`)
+      if (err.response.status === 404) {
+        setError('Ruta no encontrada (404)')
+      } else {
+        setError(`Error del servidor (${err.response.status})`)
+      }
+    } else if (err.request) {
+      console.error('No hubo respuesta del servidor (posible problema de red)')
+      setError('Sin respuesta del servidor')
+    } else {
+      console.error('Error inesperado:', err.message)
+      setError('Error inesperado')
+    }
+  } finally {
+    setLoading(false)
   }
+}
+
 
   // Función para buscar contactos
   const handleSearch = async (term: string) => {

@@ -129,20 +129,20 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
   };
 
   // Función para generar el código del iframe
-  const generateIframeCode = () => {
-    if (!shareData) return "";
-    const src = eventsService.getEventEmbedUrl(shareData.eventId, {
-      theme: embedTheme as any,
-      brandColor: brandColor.replace('#', '')
-    });
-    return `<iframe
-  src="${src}"
-  width="100%"
-  height="600"
-  frameborder="0"
+const generateIframeCode = () => {
+  if (!shareData) return "";
+  const src = eventsService.getEventEmbedUrl(shareData.eventId, {
+    theme: embedTheme as any,
+    brandColor: brandColor.replace('#', '')
+  });
+  return `<iframe
+    src="${src}"
+    width="100%"
+    height="600"
+    frameborder="0"
   style="border:0;border-radius:12px;box-shadow:0 2px 12px #0001;">
 </iframe>`;
-  };
+};
 
   // Función para generar el código del botón flotante
   const generateFloatingButtonCode = () => {
@@ -162,13 +162,13 @@ function EventsList({ refreshTrigger }: { refreshTrigger: number }) {
   };
 
   // Función para generar el código React (iframe simple)
-  const generateReactCode = () => {
-    if (!shareData) return "";
-    const src = eventsService.getEventEmbedUrl(shareData.eventId, {
-      theme: embedTheme as any,
-      brandColor: brandColor.replace('#', '')
-    });
-    return `import React from "react";
+const generateReactCode = () => {
+  if (!shareData) return "";
+  const src = eventsService.getEventEmbedUrl(shareData.eventId, {
+    theme: embedTheme as any,
+    brandColor: brandColor.replace('#', '')
+  });
+  return `import React from "react";
 
 export default function BookingEmbed() {
   return (
@@ -183,7 +183,7 @@ export default function BookingEmbed() {
     />
   );
 }`;
-  };
+};
 
   // Función para copiar al portapapeles desde el modal de compartir con animación
   const copyToClipboard = async (text: string, successMessage: string) => {
@@ -696,6 +696,7 @@ export default function EventsPage() {
           </TabsContent>
         </Tabs>
       </FadeIn>
+  
     </div>
   );
 }
